@@ -1,5 +1,6 @@
 from distutils.core import setup, Extension
 import os
+import numpy
 from Cython.Build import cythonize
 
 # compile FLI library
@@ -12,6 +13,7 @@ extensions = [
         ['pytel_fli/flidriver.pyx'],
         library_dirs=['lib//'],
         libraries=['fli', 'cfitsio'],
+        include_dirs=[numpy.get_include()],
         extra_compile_args=['-fPIC']
     )
 ]
