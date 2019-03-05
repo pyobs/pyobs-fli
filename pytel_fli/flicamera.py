@@ -32,12 +32,8 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._window = None
         self._binning = None
 
-    def open(self) -> bool:
-        """Opens the module.
-
-        Returns:
-            Success or not.
-        """
+    def open(self):
+        """Open module."""
 
         # open base
         if not BaseCamera.open(self):
@@ -70,7 +66,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         return True
 
     def close(self):
-        """Closes the module."""
+        """Close the module."""
 
         # close base
         BaseCamera.close(self)
@@ -105,7 +101,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         """
         return self._binning
 
-    def set_window(self, left: int, top: int, width: int, height: int, *args, **kwargs) -> bool:
+    def set_window(self, left: float, top: float, width: float, height: float, *args, **kwargs):
         """Set the camera window.
 
         Args:
@@ -114,26 +110,24 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
             width: Width of window.
             height: Height of window.
 
-        Returns:
-            Success or not.
+        Raises:
+            ValueError: If binning could not be set.
         """
         self._window = {'left': int(left), 'top': int(top), 'width': int(width), 'height': int(height)}
         log.info('Setting window to %dx%d at %d,%d...', width, height, left, top)
-        return True
 
-    def set_binning(self, x: int, y: int, *args, **kwargs) -> bool:
+    def set_binning(self, x: int, y: int, *args, **kwargs):
         """Set the camera binning.
 
         Args:
             x: X binning.
             y: Y binning.
 
-        Returns:
-            Success or not.
+        Raises:
+            ValueError: If binning could not be set.
         """
         self._binning = {'x': int(x), 'y': int(y)}
         log.info('Setting binning to %dx%d...', x, y)
-        return True
 
     def _expose(self, exposure_time: int, open_shutter: bool, abort_event: threading.Event) -> fits.PrimaryHDU:
         """Actually do the exposure, should be implemented by derived classes.
@@ -178,8 +172,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         while True:
             # aborted?
             if abort_event.is_set():
-                log.warning('Aborted exposure.')
-                return None
+                raise ValueError('Aborted exposure.')
 
             # is exposure finished?
             if self._driver.is_exposing():
@@ -230,19 +223,14 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._camera_status = ICamera.CameraStatus.IDLE
         return hdu
 
-    def _abort_exposure(self) -> bool:
-        """Aborts the current exposure.
+    def _abort_exposure(self):
+        """Abort the running exposure. Should be implemented by derived class.
 
-        Returns:
-            bool: True if successful, otherwise False.
+        Raises:
+            ValueError: If an error occured.
         """
-        try:
-            self._driver.cancel_exposure()
-            self._camera_status = ICamera.CameraStatus.IDLE
-            return True
-        except ValueError:
-            log.error('Could not cancel exposure.')
-            return False
+        self._driver.cancel_exposure()
+        self._camera_status = ICamera.CameraStatus.IDLE
 
     def status(self, *args, **kwargs) -> dict:
         """Returns current status of camera."""
@@ -264,15 +252,15 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         # finished
         return s
 
-    def set_cooling(self, enabled: bool, setpoint: float, *args, **kwargs) -> bool:
+    def set_cooling(self, enabled: bool, setpoint: float, *args, **kwargs):
         """Enables/disables cooling and sets setpoint.
 
         Args:
             enabled: Enable or disable cooling.
             setpoint: Setpoint in celsius for the cooling.
 
-        Returns:
-            Success or not.
+        Raises:
+            ValueError: If cooling could not be set.
         """
 
         # log
@@ -286,7 +274,6 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # set setpoint
         self._driver.set_temperature(float(setpoint) if setpoint is not None else 20.)
-        return True
 
 
 __all__ = ['FliCamera']
