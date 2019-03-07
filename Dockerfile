@@ -1,4 +1,4 @@
-FROM thusser/pytel
+FROM thusser/pyobs
 
 # install cfitsio
 RUN apt-get update && apt-get install -y libcfitsio-dev
@@ -13,4 +13,4 @@ RUN python setup.py install
 RUN rm -rf /src
 
 # set entrypoint
-ENTRYPOINT ["/usr/local/bin/pytel", "/pytel.yaml"]
+ENTRYPOINT ["/usr/local/bin/pyobs", "/pyobs.yaml"]

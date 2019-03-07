@@ -9,8 +9,8 @@ os.system('cd lib && make')
 # define extension
 extensions = [
     Extension(
-        'pytel_fli.flidriver',
-        ['pytel_fli/flidriver.pyx'],
+        'pyobs_fli.flidriver',
+        ['pyobs_fli/flidriver.pyx'],
         library_dirs=['lib//'],
         libraries=['fli', 'cfitsio'],
         include_dirs=[numpy.get_include()],
@@ -19,8 +19,8 @@ extensions = [
 ]
 
 # setup
-setup(name='pytel_fli',
+setup(name='pyobs_fli',
       version='0.1',
-      description='pytel component for FLI cameras',
-      packages=['pytel_fli'],
+      description='pyobs component for FLI cameras',
+      packages=['pyobs_fli'],
       ext_modules=cythonize(extensions))

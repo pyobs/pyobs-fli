@@ -5,8 +5,8 @@ from datetime import datetime
 import time
 from astropy.io import fits
 
-from pytel.interfaces import ICamera, ICameraWindow, ICameraBinning, ICooling
-from pytel.modules.camera.basecamera import BaseCamera
+from pyobs.interfaces import ICamera, ICameraWindow, ICameraBinning, ICooling
+from pyobs.modules.camera.basecamera import BaseCamera
 from .flidriver import *
 
 
@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 
 class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
-    """A pytel module for FLI cameras."""
+    """A pyobs module for FLI cameras."""
 
     def __init__(self, setpoint: float = -20, *args, **kwargs):
         """Initializes a new FliCamera.
