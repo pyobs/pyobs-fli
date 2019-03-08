@@ -34,16 +34,12 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
     def open(self):
         """Open module."""
-
-        # open base
-        if not BaseCamera.open(self):
-            return False
+        BaseCamera.open(self)
 
         # list devices
         devices = FliDriver.list_devices()
         if len(devices) == 0:
-            log.error('No camera found.')
-            return False
+            raise ValueError('No camera found.')
 
         # open first one
         d = devices[0]
@@ -52,23 +48,16 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         try:
             self._driver.open()
         except ValueError as e:
-            log.error('Could not open FLI camera: %s', e)
-            return False
+            raise ValueError('Could not open FLI camera: %s', e)
 
         # get window and binning from camera
         self._window, self._binning = self._driver.get_window_binning()
-        self._window_dirty = False
 
         # set cooling
         self.set_cooling(True, self._temp_setpoint)
 
-        # success
-        return True
-
     def close(self):
         """Close the module."""
-
-        # close base
         BaseCamera.close(self)
 
         # not open?
