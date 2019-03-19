@@ -145,7 +145,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._driver.set_window(self._window['left'], self._window['top'], width, height)
 
         # set some stuff
-        self._camera_status = ICamera.CameraStatus.EXPOSING
+        self._camera_status = ICamera.ExposureStatus.EXPOSING
         self._driver.init_exposure(open_shutter)
         self._driver.set_exposure_time(int(exposure_time))
 
@@ -172,7 +172,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # readout
         log.info('Exposure finished, reading out...')
-        self._camera_status = ICamera.CameraStatus.READOUT
+        self._camera_status = ICamera.ExposureStatus.READOUT
         width = int(math.floor(self._window['width'] / self._binning['x']))
         height = int(math.floor(self._window['height'] / self._binning['y']))
         img = np.zeros((height, width), dtype=np.uint16)
@@ -209,7 +209,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # return FITS image
         log.info('Readout finished.')
-        self._camera_status = ICamera.CameraStatus.IDLE
+        self._camera_status = ICamera.ExposureStatus.IDLE
         return hdu
 
     def _abort_exposure(self):
@@ -219,7 +219,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
             ValueError: If an error occured.
         """
         self._driver.cancel_exposure()
-        self._camera_status = ICamera.CameraStatus.IDLE
+        self._camera_status = ICamera.ExposureStatus.IDLE
 
     def status(self, *args, **kwargs) -> dict:
         """Returns current status of camera."""
