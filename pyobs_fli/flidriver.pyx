@@ -100,7 +100,7 @@ cdef class FliDriver:
         """Get tuple of window and binning dicts.
 
         Returns:
-            Two dicts containing window and binning.
+            Two tuples with (left, top, width, height) and (xbin, ybin)
 
         Raises:
             ValueError: If fetching readout dimensions failed.
@@ -115,13 +115,13 @@ cdef class FliDriver:
             raise ValueError('Could not query readout dimensions.')
 
         # return window and binning
-        return {'left': hoffset, 'top': voffset, 'width': width, 'height': height}, {'x': hbin, 'y': vbin}
+        return (hoffset, voffset, width, height), (hbin, vbin)
 
     def get_full_frame(self):
         """Returns the full frame of the connected camera.
 
         Returns:
-            Dictionary defining window for full frame.
+            Tuple with left, top, width, and height of full frame.
 
         Raises:
             ValueError: If fetching visible area fails.
@@ -136,7 +136,7 @@ cdef class FliDriver:
             raise ValueError('Could not query visible area.')
 
         # return it
-        return {'left':ul_x, 'top': ul_y, 'width': lr_x -  ul_x, 'height': lr_y - ul_y}
+        return ul_x, ul_y, lr_x -  ul_x, lr_y - ul_y
 
     def set_binning(self, x: int, y: int):
         """Set the binning.

@@ -66,27 +66,27 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
             self._driver.close()
             self._driver = None
 
-    def get_full_frame(self, *args, **kwargs) -> dict:
+    def get_full_frame(self, *args, **kwargs) -> (int, int, int, int):
         """Returns full size of CCD.
 
         Returns:
-            Dictionary with left, top, width, and height set.
+            Tuple with left, top, width, and height set.
         """
         return self._driver.get_full_frame()
 
-    def get_window(self, *args, **kwargs) -> dict:
+    def get_window(self, *args, **kwargs) -> (int, int, int, int):
         """Returns the camera window.
 
         Returns:
-            Dictionary with left, top, width, and height set.
+            Tuple with left, top, width, and height set.
         """
         return self._window
 
-    def get_binning(self, *args, **kwargs) -> dict:
+    def get_binning(self, *args, **kwargs) -> (int, int):
         """Returns the camera binning.
 
         Returns:
-            Dictionary with x and y.
+            Tuple with x and y.
         """
         return self._binning
 
@@ -145,7 +145,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._driver.set_window(self._window['left'], self._window['top'], width, height)
 
         # set some stuff
-        self._camera_status = ICamera.ExposureStatus.EXPOSING
+        self._change_exposure_status(ICamera.ExposureStatus.EXPOSING)
         self._driver.init_exposure(open_shutter)
         self._driver.set_exposure_time(int(exposure_time))
 
@@ -161,6 +161,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         while True:
             # aborted?
             if abort_event.is_set():
+                self._change_exposure_status(ICamera.ExposureStatus.IDLE)
                 raise ValueError('Aborted exposure.')
 
             # is exposure finished?
@@ -172,7 +173,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # readout
         log.info('Exposure finished, reading out...')
-        self._camera_status = ICamera.ExposureStatus.READOUT
+        self._change_exposure_status(ICamera.ExposureStatus.READOUT)
         width = int(math.floor(self._window['width'] / self._binning['x']))
         height = int(math.floor(self._window['height'] / self._binning['y']))
         img = np.zeros((height, width), dtype=np.uint16)
@@ -209,7 +210,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # return FITS image
         log.info('Readout finished.')
-        self._camera_status = ICamera.ExposureStatus.IDLE
+        self._change_exposure_status(ICamera.ExposureStatus.IDLE)
         return hdu
 
     def _abort_exposure(self):
