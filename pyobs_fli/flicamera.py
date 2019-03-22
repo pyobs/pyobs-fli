@@ -102,7 +102,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         Raises:
             ValueError: If binning could not be set.
         """
-        self._window = {'left': int(left), 'top': int(top), 'width': int(width), 'height': int(height)}
+        self._window = (left, top, width, height)
         log.info('Setting window to %dx%d at %d,%d...', width, height, left, top)
 
     def set_binning(self, x: int, y: int, *args, **kwargs):
@@ -115,7 +115,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         Raises:
             ValueError: If binning could not be set.
         """
-        self._binning = {'x': int(x), 'y': int(y)}
+        self._binning = (x, y)
         log.info('Setting binning to %dx%d...', x, y)
 
     def _expose(self, exposure_time: int, open_shutter: bool, abort_event: threading.Event) -> fits.PrimaryHDU:
@@ -131,18 +131,18 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         """
 
         # set binning
-        log.info("Set binning to %dx%d.", self._binning['x'], self._binning['y'])
-        self._driver.set_binning(self._binning['x'], self._binning['y'])
+        log.info("Set binning to %dx%d.", self._binning[0], self._binning[1])
+        self._driver.set_binning(*self._binning)
 
         # set window, divide width/height by binning, from libfli:
         # "Note that the given lower-right coordinate must take into account the horizontal and
         # vertical bin factor settings, but the upper-left coordinate is absolute."
-        width = int(math.floor(self._window['width']) / self._binning['x'])
-        height = int(math.floor(self._window['height']) / self._binning['y'])
+        width = int(math.floor(self._window[2]) / self._binning[0])
+        height = int(math.floor(self._window[3]) / self._binning[1])
         log.info("Set window to %dx%d (binned %dx%d) at %d,%d.",
-                 self._window['width'], self._window['height'], width, height,
-                 self._window['left'], self._window['top'])
-        self._driver.set_window(self._window['left'], self._window['top'], width, height)
+                 self._window[2], self._window[3], width, height,
+                 self._window[0], self._window[1])
+        self._driver.set_window(self._window[0], self._window[1], width, height)
 
         # set some stuff
         self._change_exposure_status(ICamera.ExposureStatus.EXPOSING)
@@ -174,8 +174,8 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         # readout
         log.info('Exposure finished, reading out...')
         self._change_exposure_status(ICamera.ExposureStatus.READOUT)
-        width = int(math.floor(self._window['width'] / self._binning['x']))
-        height = int(math.floor(self._window['height'] / self._binning['y']))
+        width = int(math.floor(self._window[2] / self._binning[0]))
+        height = int(math.floor(self._window[3] / self._binning[1]))
         img = np.zeros((height, width), dtype=np.uint16)
         for row in range(height):
             img[row, :] = self._driver.grab_row(width)
@@ -192,12 +192,12 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         hdu.header['INSTRUME'] = (self._driver.name, 'Name of instrument')
 
         # binning
-        hdu.header['XBINNING'] = hdu.header['DET-BIN1'] = (self._binning['x'], 'Binning factor used on X axis')
-        hdu.header['YBINNING'] = hdu.header['DET-BIN2'] = (self._binning['y'], 'Binning factor used on Y axis')
+        hdu.header['XBINNING'] = hdu.header['DET-BIN1'] = (self._binning[0], 'Binning factor used on X axis')
+        hdu.header['YBINNING'] = hdu.header['DET-BIN2'] = (self._binning[1], 'Binning factor used on Y axis')
 
         # window
-        hdu.header['XORGSUBF'] = (self._window['left'], 'Subframe origin on X axis')
-        hdu.header['YORGSUBF'] = (self._window['top'], 'Subframe origin on Y axis')
+        hdu.header['XORGSUBF'] = (self._window[0], 'Subframe origin on X axis')
+        hdu.header['YORGSUBF'] = (self._window[1], 'Subframe origin on Y axis')
 
         # statistics
         hdu.header['DATAMIN'] = (float(np.min(img)), 'Minimum data value')
@@ -206,7 +206,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # biassec/trimsec
         full = self.get_full_frame()
-        self.set_biassec_trimsec(hdu.header, full['left'], full['top'], full['width'], full['height'])
+        self.set_biassec_trimsec(hdu.header, *full)
 
         # return FITS image
         log.info('Readout finished.')
