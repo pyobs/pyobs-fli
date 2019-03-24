@@ -222,26 +222,6 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._driver.cancel_exposure()
         self._camera_status = ICamera.ExposureStatus.IDLE
 
-    def status(self, *args, **kwargs) -> dict:
-        """Returns current status of camera."""
-
-        # get status from parent
-        s = super().status()
-
-        # add cooling stuff
-        s['ICooling'] = {
-            'Enabled': self._temp_setpoint is not None,
-            'SetPoint': self._temp_setpoint,
-            'Power': self._driver.get_cooler_power(),
-            'Temperatures': {
-                'CCD': self._driver.get_temp(FliTemperature.CCD),
-                'Base': self._driver.get_temp(FliTemperature.BASE)
-            }
-        }
-
-        # finished
-        return s
-
     def get_cooling_status(self, *args, **kwargs) -> (bool,  float, float, dict):
         """Returns the current status for the cooling.
 
