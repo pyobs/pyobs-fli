@@ -222,7 +222,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._driver.cancel_exposure()
         self._camera_status = ICamera.ExposureStatus.IDLE
 
-    def get_cooling_status(self, *args, **kwargs) -> (bool,  float, float, dict):
+    def get_cooling_status(self, *args, **kwargs) -> (bool,  float, float):
         """Returns the current status for the cooling.
 
         Returns:
@@ -230,14 +230,20 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
                 Enabled (bool):         Whether the cooling is enabled
                 SetPoint (float):       Setpoint for the cooling in celsius.
                 Power (float):          Current cooling power in percent or None.
-                Temperatures (dict):    Dictionary of sensor name/value pairs with temperatures
         """
         enabled = self._temp_setpoint is not None
-        temps = {
+        return enabled, self._temp_setpoint, self._driver.get_cooler_power()
+
+    def get_temperatures(self, *args, **kwargs) -> dict:
+        """Returns all temperatures measured by this module.
+
+        Returns:
+            Dict containing temperatures.
+        """
+        return {
             'CCD': self._driver.get_temp(FliTemperature.CCD),
             'Base': self._driver.get_temp(FliTemperature.BASE)
         }
-        return enabled, self._temp_setpoint, self._driver.get_cooler_power(), temps
 
     def set_cooling(self, enabled: bool, setpoint: float, *args, **kwargs):
         """Enables/disables cooling and sets setpoint.
