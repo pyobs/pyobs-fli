@@ -183,6 +183,9 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         for row in range(height):
             img[:, row] = self._driver.grab_row(width)
 
+        # flip image
+        img = np.flip(img, axis=1)
+
         # create FITS image and set header
         hdu = fits.PrimaryHDU(img)
         hdu.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
