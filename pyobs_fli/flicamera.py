@@ -72,7 +72,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         Returns:
             Tuple with left, top, width, and height set.
         """
-        return self._driver.get_full_frame()
+        return self._driver.get_visible_frame()
 
     def get_window(self, *args, **kwargs) -> (int, int, int, int):
         """Returns the camera window.
