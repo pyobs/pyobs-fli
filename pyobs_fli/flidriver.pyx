@@ -131,7 +131,8 @@ cdef class FliDriver:
         cdef long ul_x, ul_y, lr_x, lr_y
 
         # get area
-        res = FLIGetVisibleArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
+        #res = FLIGetVisibleArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
+        res = FLIGetArrayArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
         if res != 0:
             raise ValueError('Could not query visible area.')
 
