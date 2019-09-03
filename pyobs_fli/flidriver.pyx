@@ -131,8 +131,28 @@ cdef class FliDriver:
         cdef long ul_x, ul_y, lr_x, lr_y
 
         # get area
-        #res = FLIGetVisibleArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
         res = FLIGetArrayArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
+        if res != 0:
+            raise ValueError('Could not query total area.')
+
+        # return it
+        return ul_x, ul_y, lr_x -  ul_x, lr_y - ul_y
+
+    def get_visible_frame(self):
+        """Returns the visble frame of the connected camera.
+
+        Returns:
+            Tuple with left, top, width, and height of full frame.
+
+        Raises:
+            ValueError: If fetching visible area fails.
+        """
+
+        # variables
+        cdef long ul_x, ul_y, lr_x, lr_y
+
+        # get area
+        res = FLIGetVisibleArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
         if res != 0:
             raise ValueError('Could not query visible area.')
 

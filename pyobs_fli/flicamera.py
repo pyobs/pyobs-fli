@@ -211,8 +211,8 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         hdu.header['DATAMEAN'] = (float(np.mean(img)), 'Mean data value')
 
         # biassec/trimsec
-        full = self.get_full_frame()
-        self.set_biassec_trimsec(hdu.header, *full)
+        visible = self._driver.get_visible_frame()
+        self.set_biassec_trimsec(hdu.header, *visible)
 
         # return FITS image
         log.info('Readout finished.')
