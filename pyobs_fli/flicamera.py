@@ -179,12 +179,6 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         img = np.zeros((height, width), dtype=np.uint16)
         for row in range(height):
             img[row, :] = self._driver.grab_row(width)
-        #img = np.zeros((width, height), dtype=np.uint16)
-        #for row in range(height):
-        #    img[:, row] = self._driver.grab_row(width)
-
-        # flip image
-        #img = np.flip(img, axis=1)
 
         # create FITS image and set header
         hdu = fits.PrimaryHDU(img)
