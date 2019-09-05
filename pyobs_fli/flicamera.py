@@ -176,15 +176,15 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._change_exposure_status(ICamera.ExposureStatus.READOUT)
         width = int(math.floor(self._window[2] / self._binning[0]))
         height = int(math.floor(self._window[3] / self._binning[1]))
-        #img = np.zeros((height, width), dtype=np.uint16)
-        #for row in range(height):
-        #    img[row, :] = self._driver.grab_row(width)
-        img = np.zeros((width, height), dtype=np.uint16)
+        img = np.zeros((height, width), dtype=np.uint16)
         for row in range(height):
-            img[:, row] = self._driver.grab_row(width)
+            img[row, :] = self._driver.grab_row(width)
+        #img = np.zeros((width, height), dtype=np.uint16)
+        #for row in range(height):
+        #    img[:, row] = self._driver.grab_row(width)
 
         # flip image
-        img = np.flip(img, axis=1)
+        #img = np.flip(img, axis=1)
 
         # create FITS image and set header
         hdu = fits.PrimaryHDU(img)
