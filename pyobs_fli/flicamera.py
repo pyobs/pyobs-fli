@@ -178,7 +178,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         height = int(math.floor(self._window[3] / self._binning[1]))
         img = np.zeros((height, width), dtype=np.uint16)
         for row in range(height):
-            img[row, :] = self._driver.grab_row(width)
+            img[:, row] = self._driver.grab_row(width)
         #img = np.zeros((width, height), dtype=np.uint16)
         #for row in range(height):
         #    img[:, row] = self._driver.grab_row(width)
