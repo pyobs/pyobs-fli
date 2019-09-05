@@ -72,7 +72,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         Returns:
             Tuple with left, top, width, and height set.
         """
-        return self._driver.get_visible_frame()
+        return self._driver.get_full_frame()
 
     def get_window(self, *args, **kwargs) -> (int, int, int, int):
         """Returns the camera window.
@@ -211,7 +211,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         hdu.header['DATAMEAN'] = (float(np.mean(img)), 'Mean data value')
 
         # biassec/trimsec
-        full = self.get_full_frame()
+        full = self.get_visible_frame()
         self.set_biassec_trimsec(hdu.header, *full)
 
         # return FITS image
