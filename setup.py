@@ -1,4 +1,4 @@
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
 import os
 import numpy
 from Cython.Build import cythonize
@@ -19,8 +19,16 @@ extensions = [
 ]
 
 # setup
-setup(name='pyobs_fli',
-      version='0.2',
-      description='pyobs component for FLI cameras',
-      packages=['pyobs_fli'],
-      ext_modules=cythonize(extensions))
+setup(
+    name='pyobs-fli',
+    version='0.8',
+    description='pyobs component for FLI cameras',
+    packages=['pyobs_fli'],
+    ext_modules=cythonize(extensions),
+    install_requires=[
+        'cython',
+        'numpy',
+        'astropy',
+        'pyobs-core'
+    ]
+)
