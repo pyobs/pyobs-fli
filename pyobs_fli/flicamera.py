@@ -9,7 +9,7 @@ from astropy.io import fits
 
 from pyobs.interfaces import ICamera, ICameraWindow, ICameraBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
-from .flidriver import *
+from pyobs_fli.flidriver import *
 
 
 log = logging.getLogger(__name__)
