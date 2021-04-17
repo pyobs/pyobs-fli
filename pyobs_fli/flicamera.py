@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
     """A pyobs module for FLI cameras."""
+    __module__ = 'pyobs_fli'
 
     def __init__(self, setpoint: float = -20, *args, **kwargs):
         """Initializes a new FliCamera.
