@@ -9,7 +9,8 @@ from astropy.io import fits
 
 from pyobs.interfaces import ICamera, ICameraWindow, ICameraBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
-from .flidriver import *
+from pyobs.utils.enums import ExposureStatus
+from pyobs_fli.flidriver import *
 
 
 log = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ log = logging.getLogger(__name__)
 
 class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
     """A pyobs module for FLI cameras."""
+    __module__ = 'pyobs_fli'
 
     def __init__(self, setpoint: float = -20, *args, **kwargs):
         """Initializes a new FliCamera.
@@ -147,7 +149,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._driver.set_window(self._window[0], self._window[1], width, height)
 
         # set some stuff
-        self._change_exposure_status(ICamera.ExposureStatus.EXPOSING)
+        self._change_exposure_status(ExposureStatus.EXPOSING)
         self._driver.init_exposure(open_shutter)
         self._driver.set_exposure_time(int(exposure_time))
 
@@ -163,7 +165,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         while True:
             # aborted?
             if abort_event.is_set():
-                self._change_exposure_status(ICamera.ExposureStatus.IDLE)
+                self._change_exposure_status(ExposureStatus.IDLE)
                 raise ValueError('Aborted exposure.')
 
             # is exposure finished?
@@ -175,7 +177,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # readout
         log.info('Exposure finished, reading out...')
-        self._change_exposure_status(ICamera.ExposureStatus.READOUT)
+        self._change_exposure_status(ExposureStatus.READOUT)
         width = int(math.floor(self._window[2] / self._binning[0]))
         height = int(math.floor(self._window[3] / self._binning[1]))
         img = np.zeros((height, width), dtype=np.uint16)
@@ -212,7 +214,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
 
         # return FITS image
         log.info('Readout finished.')
-        self._change_exposure_status(ICamera.ExposureStatus.IDLE)
+        self._change_exposure_status(ExposureStatus.IDLE)
         return hdu
 
     def _abort_exposure(self):
@@ -222,7 +224,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
             ValueError: If an error occured.
         """
         self._driver.cancel_exposure()
-        self._camera_status = ICamera.ExposureStatus.IDLE
+        self._camera_status = ExposureStatus.IDLE
 
     def get_cooling_status(self, *args, **kwargs) -> Tuple[bool, float, float]:
         """Returns the current status for the cooling.
