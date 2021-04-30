@@ -21,7 +21,7 @@ extensions = [
 # setup
 setup(
     name='pyobs-fli',
-    version='0.12',
+    version='0.13',
     description='pyobs component for FLI cameras',
     packages=['pyobs_fli'],
     ext_modules=cythonize(extensions),
