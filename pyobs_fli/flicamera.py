@@ -122,16 +122,19 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._binning = (x, y)
         log.info('Setting binning to %dx%d...', x, y)
 
-    def _expose(self, exposure_time: int, open_shutter: bool, abort_event: threading.Event) -> fits.PrimaryHDU:
+    def _expose(self, exposure_time: float, open_shutter: bool, abort_event: threading.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
 
         Args:
-            exposure_time: The requested exposure time in ms.
+            exposure_time: The requested exposure time in seconds.
             open_shutter: Whether or not to open the shutter.
             abort_event: Event that gets triggered when exposure should be aborted.
 
         Returns:
             The actual image.
+
+        Raises:
+            ValueError: If exposure was not successful.
         """
 
         # set binning
@@ -151,11 +154,11 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         # set some stuff
         self._change_exposure_status(ExposureStatus.EXPOSING)
         self._driver.init_exposure(open_shutter)
-        self._driver.set_exposure_time(int(exposure_time))
+        self._driver.set_exposure_time(int(exposure_time * 1000.))
 
         # get date obs
         log.info('Starting exposure with %s shutter for %.2f seconds...',
-                 'open' if open_shutter else 'closed', exposure_time / 1000.)
+                 'open' if open_shutter else 'closed', exposure_time)
         date_obs = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
 
         # do exposure
@@ -187,7 +190,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         # create FITS image and set header
         hdu = fits.PrimaryHDU(img)
         hdu.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
-        hdu.header['EXPTIME'] = (exposure_time / 1000., 'Exposure time [s]')
+        hdu.header['EXPTIME'] = (exposure_time, 'Exposure time [s]')
         hdu.header['DET-TEMP'] = (self._driver.get_temp(FliTemperature.CCD), 'CCD temperature [C]')
         hdu.header['DET-COOL'] = (self._driver.get_cooler_power(), 'Cooler power [percent]')
         hdu.header['DET-TSET'] = (self._temp_setpoint, 'Cooler setpoint [C]')
