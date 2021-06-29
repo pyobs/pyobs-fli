@@ -6,7 +6,7 @@ import time
 from typing import Tuple
 from astropy.io import fits
 
-from pyobs.interfaces import ICamera, ICameraWindow, IBinning, ICooling
+from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
@@ -16,7 +16,7 @@ from pyobs_fli.flidriver import *
 log = logging.getLogger(__name__)
 
 
-class FliCamera(BaseCamera, ICamera, ICameraWindow, IBinning, ICooling):
+class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
     """A pyobs module for FLI cameras."""
     __module__ = 'pyobs_fli'
 
