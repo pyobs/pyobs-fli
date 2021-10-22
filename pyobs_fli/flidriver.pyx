@@ -2,6 +2,8 @@
 
 from collections import namedtuple
 from enum import Enum
+from typing import Tuple, List
+
 import numpy as np
 cimport numpy as np
 np.import_array()
@@ -24,7 +26,7 @@ cdef class FliDriver:
     """Wrapper for the FLI driver."""
 
     @staticmethod
-    def list_devices():
+    def list_devices() -> List[DeviceInfo]:
         """List all FLI USB cameras connected to this computer.
 
         Returns:
@@ -71,7 +73,7 @@ cdef class FliDriver:
         """
         self._device_info = device_info
 
-    def open(self):
+    def open(self) -> None:
         """Open driver.
 
         Raises:
@@ -81,7 +83,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not open device.')
 
-    def close(self):
+    def close(self) -> None:
         """Close driver.
 
         Raises:
@@ -92,11 +94,11 @@ cdef class FliDriver:
             raise ValueError('Could not open device.')
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Returns the name of the connected device."""
         return self._device_info.name.decode('utf-8')
 
-    def get_window_binning(self):
+    def get_window_binning(self) -> Tuple[Tuple[int, int, int, int], Tuple[int, int]]:
         """Get tuple of window and binning dicts.
 
         Returns:
@@ -117,7 +119,7 @@ cdef class FliDriver:
         # return window and binning
         return (hoffset, voffset, width, height), (hbin, vbin)
 
-    def get_visible_frame(self):
+    def get_visible_frame(self) -> Tuple[int, int, int, int]:
         """Returns the visible frame of the connected camera.
 
         Returns:
@@ -138,7 +140,7 @@ cdef class FliDriver:
         # return it
         return ul_x, ul_y, lr_x -  ul_x, lr_y - ul_y
 
-    def get_full_frame(self):
+    def get_full_frame(self) -> Tuple[int, int, int, int]:
         """Returns the full frame of the connected camera.
 
         Returns:
@@ -159,7 +161,7 @@ cdef class FliDriver:
         # return it
         return ul_x, ul_y, lr_x -  ul_x, lr_y - ul_y
 
-    def set_binning(self, x: int, y: int):
+    def set_binning(self, x: int, y: int) -> None:
         """Set the binning.
 
         Args:
@@ -180,7 +182,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not set y binning.')
 
-    def set_window(self, left: int, top: int, width: int, height: int):
+    def set_window(self, left: int, top: int, width: int, height: int) -> None:
         """Sets the window.
 
         Args:
@@ -198,7 +200,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not set window.')
 
-    def init_exposure(self, open_shutter: bool):
+    def init_exposure(self, open_shutter: bool) -> None:
         """Initializes an exposure.
 
         Args:
@@ -218,7 +220,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not set frame type.')
 
-    def set_exposure_time(self, exptime: int):
+    def set_exposure_time(self, exptime: int) -> None:
         """Sets the exposure time.
 
         Args:
@@ -233,7 +235,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not set exposure time.')
 
-    def start_exposure(self):
+    def start_exposure(self) -> None:
         """Start a new exposure.
 
         Raises:
@@ -245,7 +247,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not start exposure.')
 
-    def is_exposing(self):
+    def is_exposing(self) -> bool:
         """Checks, whether the camera is currently exposing
 
         Returns:
@@ -270,7 +272,7 @@ cdef class FliDriver:
         return (status == FLI_CAMERA_STATUS_UNKNOWN and timeleft == 0) or \
                (status != FLI_CAMERA_STATUS_UNKNOWN and status & FLI_CAMERA_DATA_READY)
 
-    def get_temp(self, channel: FliTemperature):
+    def get_temp(self, channel: FliTemperature) -> float:
         """Returns the temperature of the given sensor.
 
         Args:
@@ -294,7 +296,7 @@ cdef class FliDriver:
         # return it
         return temp
 
-    def get_cooler_power(self):
+    def get_cooler_power(self) -> float:
         """Get power of cooling in percent.
 
         Returns:
@@ -315,7 +317,7 @@ cdef class FliDriver:
         # return it
         return power
 
-    def grab_row(self, width: int):
+    def grab_row(self, width: int) -> np.ndarray:
         """Reads out a row from the camera.
 
         Args:
@@ -332,7 +334,7 @@ cdef class FliDriver:
         cdef np.ndarray[unsigned short, ndim=1] row = np.zeros((width), dtype=np.ushort)
 
         # get pointer to data
-        cdef unsigned short* row_data = <unsigned short*> row.data
+        cdef void* row_data = <void*> row.data
 
         # call library
         res = FLIGrabRow(self._device, row_data, width)
@@ -342,7 +344,7 @@ cdef class FliDriver:
         # return row
         return row
 
-    def cancel_exposure(self):
+    def cancel_exposure(self) -> None:
         """Cancel an exposure.
 
         Raises:
@@ -353,7 +355,7 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not cancel exposure.')
 
-    def set_temperature(self, setpoint: float):
+    def set_temperature(self, setpoint: float) -> None:
         """Set cooling emperature setpoint.
 
         Args:
