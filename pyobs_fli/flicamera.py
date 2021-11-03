@@ -3,40 +3,40 @@ import math
 import threading
 from datetime import datetime
 import time
-from typing import Tuple
+from typing import Tuple, Any, Optional, Dict
+import numpy as np
 
-from astropy.io import fits
-
-from pyobs.interfaces import ICamera, ICameraWindow, ICameraBinning, ICooling
+from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
+from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
-from pyobs_fli.flidriver import *
+from pyobs_fli.flidriver import FliDriver, FliTemperature
 
 
 log = logging.getLogger(__name__)
 
 
-class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
+class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
     """A pyobs module for FLI cameras."""
     __module__ = 'pyobs_fli'
 
-    def __init__(self, setpoint: float = -20, *args, **kwargs):
+    def __init__(self, setpoint: float = -20., **kwargs: Any):
         """Initializes a new FliCamera.
 
         Args:
             setpoint: Cooling temperature setpoint.
         """
-        BaseCamera.__init__(self, *args, **kwargs)
+        BaseCamera.__init__(self, **kwargs)
 
         # variables
-        self._driver = None
-        self._temp_setpoint = setpoint
+        self._driver: Optional[FliDriver] = None
+        self._temp_setpoint: Optional[float] = setpoint
 
         # window and binning
-        self._window = None
-        self._binning = None
+        self._window = (0, 0, 0, 0)
+        self._binning = (1, 1)
 
-    def open(self):
+    def open(self) -> None:
         """Open module."""
         BaseCamera.open(self)
 
@@ -58,9 +58,10 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._window, self._binning = self._driver.get_window_binning()
 
         # set cooling
-        self.set_cooling(True, self._temp_setpoint)
+        if self._temp_setpoint is not None:
+            self.set_cooling(True, self._temp_setpoint)
 
-    def close(self):
+    def close(self) -> None:
         """Close the module."""
         BaseCamera.close(self)
 
@@ -70,15 +71,17 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
             self._driver.close()
             self._driver = None
 
-    def get_full_frame(self, *args, **kwargs) -> Tuple[int, int, int, int]:
+    def get_full_frame(self, **kwargs: Any) -> Tuple[int, int, int, int]:
         """Returns full size of CCD.
 
         Returns:
             Tuple with left, top, width, and height set.
         """
+        if self._driver is None:
+            raise ValueError('No camera driver.')
         return self._driver.get_full_frame()
 
-    def get_window(self, *args, **kwargs) -> Tuple[int, int, int, int]:
+    def get_window(self, **kwargs: Any) -> Tuple[int, int, int, int]:
         """Returns the camera window.
 
         Returns:
@@ -86,7 +89,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         """
         return self._window
 
-    def get_binning(self, *args, **kwargs) -> Tuple[int, int]:
+    def get_binning(self, **kwargs: Any) -> Tuple[int, int]:
         """Returns the camera binning.
 
         Returns:
@@ -94,7 +97,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         """
         return self._binning
 
-    def set_window(self, left: float, top: float, width: float, height: float, *args, **kwargs):
+    def set_window(self, left: int, top: int, width: int, height: int, **kwargs: Any) -> None:
         """Set the camera window.
 
         Args:
@@ -109,7 +112,7 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._window = (left, top, width, height)
         log.info('Setting window to %dx%d at %d,%d...', width, height, left, top)
 
-    def set_binning(self, x: int, y: int, *args, **kwargs):
+    def set_binning(self, x: int, y: int, **kwargs: Any) -> None:
         """Set the camera binning.
 
         Args:
@@ -122,17 +125,24 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         self._binning = (x, y)
         log.info('Setting binning to %dx%d...', x, y)
 
-    def _expose(self, exposure_time: int, open_shutter: bool, abort_event: threading.Event) -> fits.PrimaryHDU:
+    def _expose(self, exposure_time: float, open_shutter: bool, abort_event: threading.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
 
         Args:
-            exposure_time: The requested exposure time in ms.
+            exposure_time: The requested exposure time in seconds.
             open_shutter: Whether or not to open the shutter.
             abort_event: Event that gets triggered when exposure should be aborted.
 
         Returns:
             The actual image.
+
+        Raises:
+            ValueError: If exposure was not successful.
         """
+
+        # check driver
+        if self._driver is None:
+            raise ValueError('No camera driver.')
 
         # set binning
         log.info("Set binning to %dx%d.", self._binning[0], self._binning[1])
@@ -151,11 +161,11 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         # set some stuff
         self._change_exposure_status(ExposureStatus.EXPOSING)
         self._driver.init_exposure(open_shutter)
-        self._driver.set_exposure_time(int(exposure_time))
+        self._driver.set_exposure_time(int(exposure_time * 1000.))
 
         # get date obs
         log.info('Starting exposure with %s shutter for %.2f seconds...',
-                 'open' if open_shutter else 'closed', exposure_time / 1000.)
+                 'open' if open_shutter else 'closed', exposure_time)
         date_obs = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
 
         # do exposure
@@ -185,48 +195,50 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
             img[row, :] = self._driver.grab_row(width)
 
         # create FITS image and set header
-        hdu = fits.PrimaryHDU(img)
-        hdu.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
-        hdu.header['EXPTIME'] = (exposure_time / 1000., 'Exposure time [s]')
-        hdu.header['DET-TEMP'] = (self._driver.get_temp(FliTemperature.CCD), 'CCD temperature [C]')
-        hdu.header['DET-COOL'] = (self._driver.get_cooler_power(), 'Cooler power [percent]')
-        hdu.header['DET-TSET'] = (self._temp_setpoint, 'Cooler setpoint [C]')
+        image = Image(img)
+        image.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
+        image.header['EXPTIME'] = (exposure_time, 'Exposure time [s]')
+        image.header['DET-TEMP'] = (self._driver.get_temp(FliTemperature.CCD), 'CCD temperature [C]')
+        image.header['DET-COOL'] = (self._driver.get_cooler_power(), 'Cooler power [percent]')
+        image.header['DET-TSET'] = (self._temp_setpoint, 'Cooler setpoint [C]')
 
         # instrument and detector
-        hdu.header['INSTRUME'] = (self._driver.name, 'Name of instrument')
+        image.header['INSTRUME'] = (self._driver.name, 'Name of instrument')
 
         # binning
-        hdu.header['XBINNING'] = hdu.header['DET-BIN1'] = (self._binning[0], 'Binning factor used on X axis')
-        hdu.header['YBINNING'] = hdu.header['DET-BIN2'] = (self._binning[1], 'Binning factor used on Y axis')
+        image.header['XBINNING'] = image.header['DET-BIN1'] = (self._binning[0], 'Binning factor used on X axis')
+        image.header['YBINNING'] = image.header['DET-BIN2'] = (self._binning[1], 'Binning factor used on Y axis')
 
         # window
-        hdu.header['XORGSUBF'] = (self._window[0], 'Subframe origin on X axis')
-        hdu.header['YORGSUBF'] = (self._window[1], 'Subframe origin on Y axis')
+        image.header['XORGSUBF'] = (self._window[0], 'Subframe origin on X axis')
+        image.header['YORGSUBF'] = (self._window[1], 'Subframe origin on Y axis')
 
         # statistics
-        hdu.header['DATAMIN'] = (float(np.min(img)), 'Minimum data value')
-        hdu.header['DATAMAX'] = (float(np.max(img)), 'Maximum data value')
-        hdu.header['DATAMEAN'] = (float(np.mean(img)), 'Mean data value')
+        image.header['DATAMIN'] = (float(np.min(img)), 'Minimum data value')
+        image.header['DATAMAX'] = (float(np.max(img)), 'Maximum data value')
+        image.header['DATAMEAN'] = (float(np.mean(img)), 'Mean data value')
 
         # biassec/trimsec
         full = self._driver.get_visible_frame()
-        self.set_biassec_trimsec(hdu.header, *full)
+        self.set_biassec_trimsec(image.header, *full)
 
         # return FITS image
         log.info('Readout finished.')
         self._change_exposure_status(ExposureStatus.IDLE)
-        return hdu
+        return image
 
-    def _abort_exposure(self):
+    def _abort_exposure(self) -> None:
         """Abort the running exposure. Should be implemented by derived class.
 
         Raises:
             ValueError: If an error occured.
         """
+        if self._driver is None:
+            raise ValueError('No camera driver.')
         self._driver.cancel_exposure()
         self._camera_status = ExposureStatus.IDLE
 
-    def get_cooling_status(self, *args, **kwargs) -> Tuple[bool, float, float]:
+    def get_cooling_status(self, **kwargs: Any) -> Tuple[bool, float, float]:
         """Returns the current status for the cooling.
 
         Returns:
@@ -235,21 +247,25 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
                 SetPoint (float):       Setpoint for the cooling in celsius.
                 Power (float):          Current cooling power in percent or None.
         """
+        if self._driver is None:
+            raise ValueError('No camera driver.')
         enabled = self._temp_setpoint is not None
-        return enabled, self._temp_setpoint, self._driver.get_cooler_power()
+        return enabled, self._temp_setpoint if self._temp_setpoint is not None else 99., self._driver.get_cooler_power()
 
-    def get_temperatures(self, *args, **kwargs) -> dict:
+    def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
         """Returns all temperatures measured by this module.
 
         Returns:
             Dict containing temperatures.
         """
+        if self._driver is None:
+            raise ValueError('No camera driver.')
         return {
             'CCD': self._driver.get_temp(FliTemperature.CCD),
             'Base': self._driver.get_temp(FliTemperature.BASE)
         }
 
-    def set_cooling(self, enabled: bool, setpoint: float, *args, **kwargs):
+    def set_cooling(self, enabled: bool, setpoint: float, **kwargs: Any) -> None:
         """Enables/disables cooling and sets setpoint.
 
         Args:
@@ -259,6 +275,8 @@ class FliCamera(BaseCamera, ICamera, ICameraWindow, ICameraBinning, ICooling):
         Raises:
             ValueError: If cooling could not be set.
         """
+        if self._driver is None:
+            raise ValueError('No camera driver.')
 
         # log
         if enabled:
