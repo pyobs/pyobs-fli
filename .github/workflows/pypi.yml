@@ -22,4 +22,5 @@ jobs:
           PYPI_TOKEN: ${{ secrets.pypi_password }}
         run: |
           $HOME/.poetry/bin/poetry config pypi-token.pypi $PYPI_TOKEN
-          $HOME/.poetry/bin/poetry publish --build
+          $HOME/.poetry/bin/poetry build -f sdist
+          $HOME/.poetry/bin/poetry publish
