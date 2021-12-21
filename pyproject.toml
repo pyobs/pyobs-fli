@@ -11,9 +11,9 @@ script = "build.py"
 generate-setup-file = false
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = ">=3.9,<3.11"
+astropy = "^5.0"
 numpy = "^1.21"
-astropy = "^4.2"
 
 [tool.poetry.dev-dependencies]
 
