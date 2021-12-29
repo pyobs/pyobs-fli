@@ -36,9 +36,9 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         self._window = (0, 0, 0, 0)
         self._binning = (1, 1)
 
-    def open(self) -> None:
+    async def open(self) -> None:
         """Open module."""
-        BaseCamera.open(self)
+        await BaseCamera.open(self)
 
         # list devices
         devices = FliDriver.list_devices()
@@ -59,11 +59,11 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
 
         # set cooling
         if self._temp_setpoint is not None:
-            self.set_cooling(True, self._temp_setpoint)
+            await self.set_cooling(True, self._temp_setpoint)
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the module."""
-        BaseCamera.close(self)
+        await BaseCamera.close(self)
 
         # not open?
         if self._driver is not None:
@@ -71,7 +71,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             self._driver.close()
             self._driver = None
 
-    def get_full_frame(self, **kwargs: Any) -> Tuple[int, int, int, int]:
+    async def get_full_frame(self, **kwargs: Any) -> Tuple[int, int, int, int]:
         """Returns full size of CCD.
 
         Returns:
@@ -81,7 +81,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             raise ValueError('No camera driver.')
         return self._driver.get_full_frame()
 
-    def get_window(self, **kwargs: Any) -> Tuple[int, int, int, int]:
+    async def get_window(self, **kwargs: Any) -> Tuple[int, int, int, int]:
         """Returns the camera window.
 
         Returns:
@@ -89,7 +89,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         """
         return self._window
 
-    def get_binning(self, **kwargs: Any) -> Tuple[int, int]:
+    async def get_binning(self, **kwargs: Any) -> Tuple[int, int]:
         """Returns the camera binning.
 
         Returns:
@@ -97,7 +97,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         """
         return self._binning
 
-    def set_window(self, left: int, top: int, width: int, height: int, **kwargs: Any) -> None:
+    async def set_window(self, left: int, top: int, width: int, height: int, **kwargs: Any) -> None:
         """Set the camera window.
 
         Args:
@@ -112,7 +112,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         self._window = (left, top, width, height)
         log.info('Setting window to %dx%d at %d,%d...', width, height, left, top)
 
-    def set_binning(self, x: int, y: int, **kwargs: Any) -> None:
+    async def set_binning(self, x: int, y: int, **kwargs: Any) -> None:
         """Set the camera binning.
 
         Args:
@@ -125,7 +125,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         self._binning = (x, y)
         log.info('Setting binning to %dx%d...', x, y)
 
-    def _expose(self, exposure_time: float, open_shutter: bool, abort_event: threading.Event) -> Image:
+    async def _expose(self, exposure_time: float, open_shutter: bool, abort_event: threading.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
 
         Args:
@@ -159,7 +159,6 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         self._driver.set_window(self._window[0], self._window[1], width, height)
 
         # set some stuff
-        self._change_exposure_status(ExposureStatus.EXPOSING)
         self._driver.init_exposure(open_shutter)
         self._driver.set_exposure_time(int(exposure_time * 1000.))
 
@@ -175,7 +174,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         while True:
             # aborted?
             if abort_event.is_set():
-                self._change_exposure_status(ExposureStatus.IDLE)
+                await self._change_exposure_status(ExposureStatus.IDLE)
                 raise ValueError('Aborted exposure.')
 
             # is exposure finished?
@@ -187,7 +186,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
 
         # readout
         log.info('Exposure finished, reading out...')
-        self._change_exposure_status(ExposureStatus.READOUT)
+        await self._change_exposure_status(ExposureStatus.READOUT)
         width = int(math.floor(self._window[2] / self._binning[0]))
         height = int(math.floor(self._window[3] / self._binning[1]))
         img = np.zeros((height, width), dtype=np.uint16)
@@ -224,7 +223,6 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
 
         # return FITS image
         log.info('Readout finished.')
-        self._change_exposure_status(ExposureStatus.IDLE)
         return image
 
     def _abort_exposure(self) -> None:
@@ -236,9 +234,8 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         if self._driver is None:
             raise ValueError('No camera driver.')
         self._driver.cancel_exposure()
-        self._camera_status = ExposureStatus.IDLE
 
-    def get_cooling_status(self, **kwargs: Any) -> Tuple[bool, float, float]:
+    async def get_cooling_status(self, **kwargs: Any) -> Tuple[bool, float, float]:
         """Returns the current status for the cooling.
 
         Returns:
@@ -252,7 +249,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         enabled = self._temp_setpoint is not None
         return enabled, self._temp_setpoint if self._temp_setpoint is not None else 99., self._driver.get_cooler_power()
 
-    def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
+    async def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
         """Returns all temperatures measured by this module.
 
         Returns:
@@ -265,7 +262,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             'Base': self._driver.get_temp(FliTemperature.BASE)
         }
 
-    def set_cooling(self, enabled: bool, setpoint: float, **kwargs: Any) -> None:
+    async def set_cooling(self, enabled: bool, setpoint: float, **kwargs: Any) -> None:
         """Enables/disables cooling and sets setpoint.
 
         Args:

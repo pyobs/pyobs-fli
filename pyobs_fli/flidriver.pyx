@@ -331,7 +331,7 @@ cdef class FliDriver:
         """
 
         # create numpy array of given dimensions
-        cdef np.ndarray[unsigned short, ndim=1] row = np.zeros((width), dtype=np.ushort)
+        cdef np.ndarray[unsigned short, ndim=1] row = np.zeros((width,), dtype=np.ushort)
 
         # get pointer to data
         cdef void* row_data = <void*> row.data
