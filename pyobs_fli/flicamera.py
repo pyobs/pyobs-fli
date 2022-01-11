@@ -10,6 +10,8 @@ from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
+from pyobs.utils import exceptions as exc
+
 from .flidriver import FliDriver, FliTemperature
 
 
@@ -138,7 +140,8 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             The actual image.
 
         Raises:
-            ValueError: If exposure was not successful.
+            GrabImageError: If exposure was not successful.
+            AbortedError: If exposure was aborted.
         """
 
         # check driver
@@ -183,7 +186,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             # aborted?
             if abort_event.is_set():
                 await self._change_exposure_status(ExposureStatus.IDLE)
-                raise ValueError("Aborted exposure.")
+                raise exc.AbortedError("Aborted exposure.")
 
             # is exposure finished?
             if self._driver.is_exposing():
