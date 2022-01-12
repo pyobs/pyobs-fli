@@ -186,7 +186,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             # aborted?
             if abort_event.is_set():
                 await self._change_exposure_status(ExposureStatus.IDLE)
-                raise exc.AbortedError("Aborted exposure.")
+                raise InterruptedError("Aborted exposure.")
 
             # is exposure finished?
             if self._driver.is_exposing():
