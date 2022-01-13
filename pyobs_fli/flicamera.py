@@ -141,7 +141,6 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
 
         Raises:
             GrabImageError: If exposure was not successful.
-            AbortedError: If exposure was aborted.
         """
 
         # check driver
