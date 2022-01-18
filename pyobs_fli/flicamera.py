@@ -1,6 +1,6 @@
+import asyncio
 import logging
 import math
-import threading
 from datetime import datetime
 import time
 from typing import Tuple, Any, Optional, Dict
@@ -10,7 +10,9 @@ from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
-from pyobs_fli.flidriver import FliDriver, FliTemperature
+from pyobs.utils import exceptions as exc
+
+from .flidriver import FliDriver, FliTemperature
 
 
 log = logging.getLogger(__name__)
@@ -18,9 +20,10 @@ log = logging.getLogger(__name__)
 
 class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
     """A pyobs module for FLI cameras."""
-    __module__ = 'pyobs_fli'
 
-    def __init__(self, setpoint: float = -20., **kwargs: Any):
+    __module__ = "pyobs_fli"
+
+    def __init__(self, setpoint: float = -20.0, **kwargs: Any):
         """Initializes a new FliCamera.
 
         Args:
@@ -43,16 +46,16 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         # list devices
         devices = FliDriver.list_devices()
         if len(devices) == 0:
-            raise ValueError('No camera found.')
+            raise ValueError("No camera found.")
 
         # open first one
         d = devices[0]
-        log.info('Opening connection to "%s" at %s...', d.name.decode('utf-8'), d.filename.decode('utf-8'))
+        log.info('Opening connection to "%s" at %s...', d.name.decode("utf-8"), d.filename.decode("utf-8"))
         self._driver = FliDriver(d)
         try:
             self._driver.open()
         except ValueError as e:
-            raise ValueError('Could not open FLI camera: %s', e)
+            raise ValueError("Could not open FLI camera: %s", e)
 
         # get window and binning from camera
         self._window, self._binning = self._driver.get_window_binning()
@@ -78,7 +81,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             Tuple with left, top, width, and height set.
         """
         if self._driver is None:
-            raise ValueError('No camera driver.')
+            raise ValueError("No camera driver.")
         return self._driver.get_full_frame()
 
     async def get_window(self, **kwargs: Any) -> Tuple[int, int, int, int]:
@@ -110,7 +113,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             ValueError: If binning could not be set.
         """
         self._window = (left, top, width, height)
-        log.info('Setting window to %dx%d at %d,%d...', width, height, left, top)
+        log.info("Setting window to %dx%d at %d,%d...", width, height, left, top)
 
     async def set_binning(self, x: int, y: int, **kwargs: Any) -> None:
         """Set the camera binning.
@@ -123,9 +126,9 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             ValueError: If binning could not be set.
         """
         self._binning = (x, y)
-        log.info('Setting binning to %dx%d...', x, y)
+        log.info("Setting binning to %dx%d...", x, y)
 
-    async def _expose(self, exposure_time: float, open_shutter: bool, abort_event: threading.Event) -> Image:
+    async def _expose(self, exposure_time: float, open_shutter: bool, abort_event: asyncio.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
 
         Args:
@@ -137,12 +140,12 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             The actual image.
 
         Raises:
-            ValueError: If exposure was not successful.
+            GrabImageError: If exposure was not successful.
         """
 
         # check driver
         if self._driver is None:
-            raise ValueError('No camera driver.')
+            raise ValueError("No camera driver.")
 
         # set binning
         log.info("Set binning to %dx%d.", self._binning[0], self._binning[1])
@@ -153,18 +156,25 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         # vertical bin factor settings, but the upper-left coordinate is absolute."
         width = int(math.floor(self._window[2]) / self._binning[0])
         height = int(math.floor(self._window[3]) / self._binning[1])
-        log.info("Set window to %dx%d (binned %dx%d) at %d,%d.",
-                 self._window[2], self._window[3], width, height,
-                 self._window[0], self._window[1])
+        log.info(
+            "Set window to %dx%d (binned %dx%d) at %d,%d.",
+            self._window[2],
+            self._window[3],
+            width,
+            height,
+            self._window[0],
+            self._window[1],
+        )
         self._driver.set_window(self._window[0], self._window[1], width, height)
 
         # set some stuff
         self._driver.init_exposure(open_shutter)
-        self._driver.set_exposure_time(int(exposure_time * 1000.))
+        self._driver.set_exposure_time(int(exposure_time * 1000.0))
 
         # get date obs
-        log.info('Starting exposure with %s shutter for %.2f seconds...',
-                 'open' if open_shutter else 'closed', exposure_time)
+        log.info(
+            "Starting exposure with %s shutter for %.2f seconds...", "open" if open_shutter else "closed", exposure_time
+        )
         date_obs = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
 
         # do exposure
@@ -175,7 +185,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             # aborted?
             if abort_event.is_set():
                 await self._change_exposure_status(ExposureStatus.IDLE)
-                raise ValueError('Aborted exposure.')
+                raise InterruptedError("Aborted exposure.")
 
             # is exposure finished?
             if self._driver.is_exposing():
@@ -185,7 +195,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
                 time.sleep(0.2)
 
         # readout
-        log.info('Exposure finished, reading out...')
+        log.info("Exposure finished, reading out...")
         await self._change_exposure_status(ExposureStatus.READOUT)
         width = int(math.floor(self._window[2] / self._binning[0]))
         height = int(math.floor(self._window[3] / self._binning[1]))
@@ -195,44 +205,44 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
 
         # create FITS image and set header
         image = Image(img)
-        image.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
-        image.header['EXPTIME'] = (exposure_time, 'Exposure time [s]')
-        image.header['DET-TEMP'] = (self._driver.get_temp(FliTemperature.CCD), 'CCD temperature [C]')
-        image.header['DET-COOL'] = (self._driver.get_cooler_power(), 'Cooler power [percent]')
-        image.header['DET-TSET'] = (self._temp_setpoint, 'Cooler setpoint [C]')
+        image.header["DATE-OBS"] = (date_obs, "Date and time of start of exposure")
+        image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
+        image.header["DET-TEMP"] = (self._driver.get_temp(FliTemperature.CCD), "CCD temperature [C]")
+        image.header["DET-COOL"] = (self._driver.get_cooler_power(), "Cooler power [percent]")
+        image.header["DET-TSET"] = (self._temp_setpoint, "Cooler setpoint [C]")
 
         # instrument and detector
-        image.header['INSTRUME'] = (self._driver.name, 'Name of instrument')
+        image.header["INSTRUME"] = (self._driver.name, "Name of instrument")
 
         # binning
-        image.header['XBINNING'] = image.header['DET-BIN1'] = (self._binning[0], 'Binning factor used on X axis')
-        image.header['YBINNING'] = image.header['DET-BIN2'] = (self._binning[1], 'Binning factor used on Y axis')
+        image.header["XBINNING"] = image.header["DET-BIN1"] = (self._binning[0], "Binning factor used on X axis")
+        image.header["YBINNING"] = image.header["DET-BIN2"] = (self._binning[1], "Binning factor used on Y axis")
 
         # window
-        image.header['XORGSUBF'] = (self._window[0], 'Subframe origin on X axis')
-        image.header['YORGSUBF'] = (self._window[1], 'Subframe origin on Y axis')
+        image.header["XORGSUBF"] = (self._window[0], "Subframe origin on X axis")
+        image.header["YORGSUBF"] = (self._window[1], "Subframe origin on Y axis")
 
         # statistics
-        image.header['DATAMIN'] = (float(np.min(img)), 'Minimum data value')
-        image.header['DATAMAX'] = (float(np.max(img)), 'Maximum data value')
-        image.header['DATAMEAN'] = (float(np.mean(img)), 'Mean data value')
+        image.header["DATAMIN"] = (float(np.min(img)), "Minimum data value")
+        image.header["DATAMAX"] = (float(np.max(img)), "Maximum data value")
+        image.header["DATAMEAN"] = (float(np.mean(img)), "Mean data value")
 
         # biassec/trimsec
         full = self._driver.get_visible_frame()
         self.set_biassec_trimsec(image.header, *full)
 
         # return FITS image
-        log.info('Readout finished.')
+        log.info("Readout finished.")
         return image
 
-    def _abort_exposure(self) -> None:
+    async def _abort_exposure(self) -> None:
         """Abort the running exposure. Should be implemented by derived class.
 
         Raises:
             ValueError: If an error occured.
         """
         if self._driver is None:
-            raise ValueError('No camera driver.')
+            raise ValueError("No camera driver.")
         self._driver.cancel_exposure()
 
     async def get_cooling_status(self, **kwargs: Any) -> Tuple[bool, float, float]:
@@ -245,9 +255,13 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
                 Power (float):          Current cooling power in percent or None.
         """
         if self._driver is None:
-            raise ValueError('No camera driver.')
+            raise ValueError("No camera driver.")
         enabled = self._temp_setpoint is not None
-        return enabled, self._temp_setpoint if self._temp_setpoint is not None else 99., self._driver.get_cooler_power()
+        return (
+            enabled,
+            self._temp_setpoint if self._temp_setpoint is not None else 99.0,
+            self._driver.get_cooler_power(),
+        )
 
     async def get_temperatures(self, **kwargs: Any) -> Dict[str, float]:
         """Returns all temperatures measured by this module.
@@ -256,11 +270,8 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             Dict containing temperatures.
         """
         if self._driver is None:
-            raise ValueError('No camera driver.')
-        return {
-            'CCD': self._driver.get_temp(FliTemperature.CCD),
-            'Base': self._driver.get_temp(FliTemperature.BASE)
-        }
+            raise ValueError("No camera driver.")
+        return {"CCD": self._driver.get_temp(FliTemperature.CCD), "Base": self._driver.get_temp(FliTemperature.BASE)}
 
     async def set_cooling(self, enabled: bool, setpoint: float, **kwargs: Any) -> None:
         """Enables/disables cooling and sets setpoint.
@@ -273,19 +284,19 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             ValueError: If cooling could not be set.
         """
         if self._driver is None:
-            raise ValueError('No camera driver.')
+            raise ValueError("No camera driver.")
 
         # log
         if enabled:
-            log.info('Enabling cooling with a setpoint of %.2f°C...', setpoint)
+            log.info("Enabling cooling with a setpoint of %.2f°C...", setpoint)
         else:
-            log.info('Disabling cooling and setting setpoint to 20°C...')
+            log.info("Disabling cooling and setting setpoint to 20°C...")
 
         # if not enabled, set setpoint to None
         self._temp_setpoint = setpoint if enabled else None
 
         # set setpoint
-        self._driver.set_temperature(float(setpoint) if setpoint is not None else 20.)
+        self._driver.set_temperature(float(setpoint) if setpoint is not None else 20.0)
 
 
-__all__ = ['FliCamera']
+__all__ = ["FliCamera"]
