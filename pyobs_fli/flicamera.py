@@ -10,9 +10,6 @@ from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
-from pyobs.utils import exceptions as exc
-
-from .flidriver import FliDriver, FliTemperature
 
 
 log = logging.getLogger(__name__)
@@ -30,6 +27,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             setpoint: Cooling temperature setpoint.
         """
         BaseCamera.__init__(self, **kwargs)
+        from .flidriver import FliDriver  # type: ignore
 
         # variables
         self._driver: Optional[FliDriver] = None
@@ -42,6 +40,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
     async def open(self) -> None:
         """Open module."""
         await BaseCamera.open(self)
+        from .flidriver import FliDriver
 
         # list devices
         devices = FliDriver.list_devices()
@@ -142,6 +141,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         Raises:
             GrabImageError: If exposure was not successful.
         """
+        from .flidriver import FliTemperature
 
         # check driver
         if self._driver is None:
@@ -269,6 +269,8 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
         Returns:
             Dict containing temperatures.
         """
+        from .flidriver import FliTemperature
+
         if self._driver is None:
             raise ValueError("No camera driver.")
         return {"CCD": self._driver.get_temp(FliTemperature.CCD), "Base": self._driver.get_temp(FliTemperature.BASE)}
