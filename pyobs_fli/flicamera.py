@@ -192,7 +192,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
                 break
             else:
                 # sleep a little
-                time.sleep(0.2)
+                await asyncio.sleep(0.01)
 
         # readout
         log.info("Exposure finished, reading out...")
