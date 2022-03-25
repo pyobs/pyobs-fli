@@ -20,22 +20,28 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
 
     __module__ = "pyobs_fli"
 
-    def __init__(self, setpoint: float = -20.0, **kwargs: Any):
+    def __init__(self, setpoint: float = -20.0, keep_alive_ping: int = 10, **kwargs: Any):
         """Initializes a new FliCamera.
 
         Args:
             setpoint: Cooling temperature setpoint.
+            keep_alive_ping: Interval in seconds to ping camera.
         """
         BaseCamera.__init__(self, **kwargs)
         from .flidriver import FliDriver  # type: ignore
 
         # variables
         self._driver: Optional[FliDriver] = None
+        self._device: Optional[Any] = None
         self._temp_setpoint: Optional[float] = setpoint
+        self._keep_alive_ping = keep_alive_ping
 
         # window and binning
         self._window = (0, 0, 0, 0)
         self._binning = (1, 1)
+
+        # keep alive
+        self.add_background_task(self._keep_alive)
 
     async def open(self) -> None:
         """Open module."""
@@ -48,9 +54,13 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             raise ValueError("No camera found.")
 
         # open first one
-        d = devices[0]
-        log.info('Opening connection to "%s" at %s...', d.name.decode("utf-8"), d.filename.decode("utf-8"))
-        self._driver = FliDriver(d)
+        self._device = devices[0]
+        log.info(
+            'Opening connection to "%s" at %s...',
+            self._device.name.decode("utf-8"),
+            self._device.filename.decode("utf-8"),
+        )
+        self._driver = FliDriver(self._device)
         try:
             self._driver.open()
         except ValueError as e:
@@ -72,6 +82,24 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             # close connection
             self._driver.close()
             self._driver = None
+
+    async def _keep_alive(self) -> None:
+        """Keep connection to camera alive."""
+        from .flidriver import FliDriver
+
+        while True:
+            # is there a valid driver?
+            if self._driver is not None:
+                # then we should be able to call it
+                try:
+                    self._driver.get_full_frame()
+                except ValueError:
+                    # no? then reopen driver
+                    log.warning("Lost connection to camera, reopening it.")
+                    self._driver.close()
+                    self._driver = FliDriver(self._device)
+
+            await asyncio.sleep(self._keep_alive_ping)
 
     async def get_full_frame(self, **kwargs: Any) -> Tuple[int, int, int, int]:
         """Returns full size of CCD.
