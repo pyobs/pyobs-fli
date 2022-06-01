@@ -383,7 +383,7 @@ cdef class FliDriver:
         # get it
         res = FLIGetModel(self._device, model, len)
         if res != 0:
-            raise ValueError('Could not fetch temperature.')
+            raise ValueError('Could not fetch model.')
 
         # return it
         return str(model)
