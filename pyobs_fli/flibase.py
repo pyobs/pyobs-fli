@@ -43,8 +43,21 @@ class FliBaseMixin:
         if len(devices) == 0:
             raise ValueError("No FLI device found.")
 
-        # open first one
-        self._device = devices[0]
+        # do we have a device name or path given?
+        if self._dev_name is not None or self._dev_path is not None:
+            # yes, find matching device
+            for dev in devices:
+                if dev.name.decode("utf-8") == self._dev_name or dev.filename.decode("utf-8") == self._dev_path:
+                    self._device = dev
+                    break
+            else:
+                raise ValueError("No matching device found, check dev_name/dev_path.")
+
+        else:
+            # no, just pick first one
+            self._device = devices[0]
+
+        # open driver
         log.info(
             'Opening connection to "%s" at %s...',
             self._device.name.decode("utf-8"),
