@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Any, Optional
 
+from pyobs_fli.flidriver import DeviceType
 
 log = logging.getLogger(__name__)
 
@@ -12,19 +13,27 @@ class FliBaseMixin:
     __module__ = "pyobs_fli"
 
     def __init__(
-        self, dev_name: Optional[str] = None, dev_path: Optional[str] = None, keep_alive_ping: int = 10, **kwargs: Any
+        self,
+        dev_type: DeviceType,
+        dev_name: Optional[str] = None,
+        dev_path: Optional[str] = None,
+        keep_alive_ping: int = 10,
+        **kwargs: Any,
     ):
         """Initializes a new FliCamera.
 
         If neither dev_name nor dev_path are given, the first found device is used.
 
         Args:
+            dev_type: Device type.
             dev_name: Optional name for device.
             dev_path: Optional path to device.
+            keep_alive_ping: Interval for keep alive ping.
         """
         from .flidriver import FliDriver  # type: ignore
 
         # variables
+        self._dev_type = dev_type
         self._dev_name = dev_name
         self._dev_path = dev_path
         self._keep_alive_ping = keep_alive_ping
@@ -39,7 +48,7 @@ class FliBaseMixin:
         from .flidriver import FliDriver
 
         # list devices
-        devices = FliDriver.list_devices()
+        devices = FliDriver.list_devices(self._dev_type)
         if len(devices) == 0:
             raise ValueError("No FLI device found.")
 
