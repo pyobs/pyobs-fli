@@ -22,7 +22,7 @@ class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHea
             filter_names: Names of filters.
         """
         Module.__init__(self, **kwargs)
-        FliBaseMixin.__init__(dev_type=DeviceType.FILTERWHEEL, **kwargs)
+        FliBaseMixin.__init__(self, dev_type=DeviceType.FILTERWHEEL, **kwargs)
 
         # variables
         self._filter_names = filter_names
