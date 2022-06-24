@@ -37,9 +37,6 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling):
         self._window = (0, 0, 0, 0)
         self._binning = (1, 1)
 
-        # keep alive
-        self.add_background_task(self._keep_alive)
-
     async def open(self) -> None:
         """Open module."""
         await BaseCamera.open(self)
@@ -59,12 +56,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling):
     async def close(self) -> None:
         """Close the module."""
         await BaseCamera.close(self)
-
-        # not open?
-        if self._driver is not None:
-            # close connection
-            self._driver.close()
-            self._driver = None
+        await FliBaseMixin.close(self)
 
     async def get_full_frame(self, **kwargs: Any) -> Tuple[int, int, int, int]:
         """Returns full size of CCD.
