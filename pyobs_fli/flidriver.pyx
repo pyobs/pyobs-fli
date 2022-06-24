@@ -44,7 +44,7 @@ cdef class FliDriver:
         cdef char name[1024]
 
         # create list of USB camera
-        if FLICreateList(FLIDOMAIN_USB | device_type) != 0:
+        if FLICreateList(FLIDOMAIN_USB | device_type.value) != 0:
             raise ValueError('Could not create list of FLI devices.')
 
         # init list of devices
