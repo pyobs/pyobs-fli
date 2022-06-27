@@ -230,7 +230,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling):
             raise ValueError("No camera driver.")
         self._driver.cancel_exposure()
 
-    async def get_cooling_status(self, **kwargs: Any) -> Tuple[bool, float, float]:
+    async def get_cooling(self, **kwargs: Any) -> Tuple[bool, float, float]:
         """Returns the current status for the cooling.
 
         Returns:
