@@ -2,11 +2,10 @@ import asyncio
 import logging
 import math
 from datetime import datetime
-import time
 from typing import Tuple, Any, Optional, Dict
 import numpy as np
 
-from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling
+from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling, IAbortable
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
@@ -15,7 +14,7 @@ from pyobs.utils.enums import ExposureStatus
 log = logging.getLogger(__name__)
 
 
-class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
+class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling, IAbortable):
     """A pyobs module for FLI cameras."""
 
     __module__ = "pyobs_fli"
@@ -273,7 +272,7 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling):
             raise ValueError("No camera driver.")
         self._driver.cancel_exposure()
 
-    async def get_cooling_status(self, **kwargs: Any) -> Tuple[bool, float, float]:
+    async def get_cooling(self, **kwargs: Any) -> Tuple[bool, float, float]:
         """Returns the current status for the cooling.
 
         Returns:
