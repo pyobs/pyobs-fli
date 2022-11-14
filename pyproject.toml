@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyobs-fli"
-version = "1.0.0"
+version = "1.0.1"
 description = "pyobs module for FLI cameras"
 authors = ["Tim-Oliver Husser <thusser@uni-goettingen.de>"]
 license = "MIT"
@@ -29,4 +29,3 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 120
-target-version = ['py39']

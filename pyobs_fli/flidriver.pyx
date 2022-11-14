@@ -367,3 +367,17 @@ cdef class FliDriver:
         res = FLISetTemperature(self._device, setpoint)
         if res != 0:
             raise ValueError('Could not set temperature.')
+
+    def get_serial_string(self) -> str:
+        """Returns serial string for camera."""
+
+        # variables
+        cdef char serial[1024]
+
+        # get it
+        res = FLIGetSerialString(self._device, <char*>serial, 1024)
+        if res != 0:
+            raise ValueError('Could not fetch serial string.')
+
+        # return it
+        return str(serial)
