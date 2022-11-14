@@ -65,6 +65,10 @@ class FliCamera(BaseCamera, ICamera, IWindow, IBinning, ICooling, IAbortable):
         except ValueError as e:
             raise ValueError("Could not open FLI camera: %s", e)
 
+        # serial number
+        serial = self._driver.get_serial_string()
+        log.info("Connected to camera with serial number: %s", serial)
+
         # get window and binning from camera
         self._window, self._binning = self._driver.get_window_binning()
 
