@@ -22,6 +22,11 @@ class FliTemperature(Enum):
     BASE = FLI_TEMPERATURE_BASE
 
 
+class DeviceType(Enum):
+    CAMERA = FLIDEVICE_CAMERA
+    FILTERWHEEL = FLIDEVICE_FILTERWHEEL
+
+
 cdef class FliDriver:
     """Wrapper for the FLI driver."""
 
@@ -380,4 +385,4 @@ cdef class FliDriver:
             raise ValueError('Could not fetch serial string.')
 
         # return it
-        return str(serial)
+        return bytes(serial).decode('utf-8')
