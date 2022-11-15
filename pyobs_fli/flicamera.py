@@ -46,6 +46,10 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         if self._driver is None:
             raise ValueError("No driver found.")
 
+        # serial number
+        serial = self._driver.get_serial_string()
+        log.info("Connected to camera with serial number: %s", serial)
+
         # get window and binning from camera
         self._window, self._binning = self._driver.get_window_binning()
 

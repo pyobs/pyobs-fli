@@ -78,10 +78,6 @@ class FliBaseMixin:
         except ValueError as e:
             raise ValueError("Could not open FLI camera: %s", e)
 
-        # serial number
-        serial = self._driver.get_serial_string()
-        log.info("Connected to camera with serial number: %s", serial)
-
     async def close(self) -> None:
         # not open?
         if self._driver is not None:

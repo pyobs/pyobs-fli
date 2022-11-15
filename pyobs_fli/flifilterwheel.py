@@ -32,6 +32,14 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         await Module.open(self)
         await FliBaseMixin.open(self)
 
+        # check
+        if self._driver is None:
+            raise ValueError("No driver found.")
+
+        # serial number
+        serial = self._driver.get_serial_string()
+        log.info("Connected to filter wheel with serial number: %s", serial)
+
     async def close(self) -> None:
         """Close the module."""
         await Module.close(self)
