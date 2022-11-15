@@ -98,7 +98,7 @@ class FliBaseMixin:
             if self._driver is not None:
                 # then we should be able to call it
                 try:
-                    self._driver.get_model()
+                    self._driver.get_serial_string()
                 except ValueError:
                     # no? then reopen driver
                     log.warning("Lost connection to camera, reopening it.")
