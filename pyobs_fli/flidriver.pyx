@@ -373,6 +373,25 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not set temperature.')
 
+    def get_model(self) -> str:
+        """Returns the model of the device.
+
+        Returns:
+            str: Model of device.
+        """
+
+        # variables
+        cdef char *model
+        cdef size_t len
+
+        # get it
+        res = FLIGetModel(self._device, model, len)
+        if res != 0:
+            raise ValueError('Could not fetch model.')
+
+        # return it
+        return str(model)
+
     def get_serial_string(self) -> str:
         """Returns serial string for camera."""
 
