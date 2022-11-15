@@ -31,7 +31,7 @@ cdef class FliDriver:
     """Wrapper for the FLI driver."""
 
     @staticmethod
-    def list_devices() -> List[DeviceInfo]:
+    def list_devices(device_type: DeviceType = DeviceType.CAMERA) -> List[DeviceInfo]:
         """List all FLI USB cameras connected to this computer.
 
         Returns:
@@ -44,7 +44,7 @@ cdef class FliDriver:
         cdef char name[1024]
 
         # create list of USB camera
-        if FLICreateList(FLIDOMAIN_USB | FLIDEVICE_CAMERA) != 0:
+        if FLICreateList(FLIDOMAIN_USB | device_type.value) != 0:
             raise ValueError('Could not create list of FLI cameras.')
 
         # init list of devices
