@@ -129,7 +129,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         Returns:
             Dictionary containing FITS headers.
         """
-        pass
+        return {"FILTER": (await self.get_filter(), "Current filter")}
 
 
 __all__ = ["FliFilterWheel"]
