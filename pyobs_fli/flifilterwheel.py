@@ -23,6 +23,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         """
         Module.__init__(self, **kwargs)
         FliBaseMixin.__init__(self, dev_type=DeviceType.FILTERWHEEL, **kwargs)
+        MotionStatusMixin.__init__(self, motion_status_interfaces=["IFilters"])
 
         # variables
         self._filter_names = filter_names
