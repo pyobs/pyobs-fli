@@ -405,3 +405,33 @@ cdef class FliDriver:
 
         # return it
         return bytes(serial).decode('utf-8')
+
+    def get_filter_pos(self) -> int:
+        """Returns current filter position.
+
+        Returns:
+            Filter position.
+        """
+
+        # variables
+        cdef long pos
+
+        # get it
+        res = FLIGetFilterPos(self._device, &pos)
+        if res != 0:
+            raise ValueError('Could not fetch filter position.')
+
+        # return it
+        return pos
+
+    def set_filter_pos(self, pos: int) -> None:
+        """Set filter position.
+
+        Args:
+            pos: New filter position.
+        """
+
+        # set filter pos
+        res = FLISetFilterPos(self._device, pos)
+        if res != 0:
+            raise ValueError('Could not set filter position.')
