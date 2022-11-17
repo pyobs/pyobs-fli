@@ -11,7 +11,7 @@ from pyobs.images import Image
 from pyobs.utils.enums import ExposureStatus
 
 from .flibase import FliBaseMixin
-
+from .flidriver import DeviceType
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
             setpoint: Cooling temperature setpoint.
         """
         BaseCamera.__init__(self, **kwargs)
-        FliBaseMixin.__init__(**kwargs)
+        FliBaseMixin.__init__(self, dev_type=DeviceType.CAMERA, **kwargs)
 
         # variables
         self._temp_setpoint: Optional[float] = setpoint
