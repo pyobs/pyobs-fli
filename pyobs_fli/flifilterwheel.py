@@ -4,6 +4,7 @@ from typing import Tuple, Any, Optional, Dict, List
 from pyobs.mixins import MotionStatusMixin
 from pyobs.modules import Module
 from pyobs.interfaces import IFilters, IFitsHeaderBefore
+from pyobs.utils.enums import MotionStatus
 from pyobs_fli.flibase import FliBaseMixin
 from pyobs_fli.flidriver import DeviceType
 
@@ -40,6 +41,9 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         # serial number
         serial = self._driver.get_serial_string()
         log.info("Connected to filter wheel with serial number: %s", serial)
+
+        # idle
+        await self._change_motion_status(MotionStatus.IDLE)
 
     async def close(self) -> None:
         """Close the module."""
