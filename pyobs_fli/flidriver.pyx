@@ -22,11 +22,16 @@ class FliTemperature(Enum):
     BASE = FLI_TEMPERATURE_BASE
 
 
+class DeviceType(Enum):
+    CAMERA = FLIDEVICE_CAMERA
+    FILTERWHEEL = FLIDEVICE_FILTERWHEEL
+
+
 cdef class FliDriver:
     """Wrapper for the FLI driver."""
 
     @staticmethod
-    def list_devices() -> List[DeviceInfo]:
+    def list_devices(device_type: DeviceType = DeviceType.CAMERA) -> List[DeviceInfo]:
         """List all FLI USB cameras connected to this computer.
 
         Returns:
@@ -39,7 +44,7 @@ cdef class FliDriver:
         cdef char name[1024]
 
         # create list of USB camera
-        if FLICreateList(FLIDOMAIN_USB | FLIDEVICE_CAMERA) != 0:
+        if FLICreateList(FLIDOMAIN_USB | device_type.value) != 0:
             raise ValueError('Could not create list of FLI cameras.')
 
         # init list of devices
@@ -368,6 +373,25 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not set temperature.')
 
+    def get_model(self) -> str:
+        """Returns the model of the device.
+
+        Returns:
+            str: Model of device.
+        """
+
+        # variables
+        cdef char *model
+        cdef size_t len
+
+        # get it
+        res = FLIGetModel(self._device, model, len)
+        if res != 0:
+            raise ValueError('Could not fetch model.')
+
+        # return it
+        return str(model)
+
     def get_serial_string(self) -> str:
         """Returns serial string for camera."""
 
@@ -380,4 +404,34 @@ cdef class FliDriver:
             raise ValueError('Could not fetch serial string.')
 
         # return it
-        return str(serial)
+        return bytes(serial).decode('utf-8')
+
+    def get_filter_pos(self) -> int:
+        """Returns current filter position.
+
+        Returns:
+            Filter position.
+        """
+
+        # variables
+        cdef long pos
+
+        # get it
+        res = FLIGetFilterPos(self._device, &pos)
+        if res != 0:
+            raise ValueError('Could not fetch filter position.')
+
+        # return it
+        return pos
+
+    def set_filter_pos(self, pos: int) -> None:
+        """Set filter position.
+
+        Args:
+            pos: New filter position.
+        """
+
+        # set filter pos
+        res = FLISetFilterPos(self._device, pos)
+        if res != 0:
+            raise ValueError('Could not set filter position.')
