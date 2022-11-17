@@ -71,7 +71,9 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
 
         # get filter pos and set it
         pos = self._filter_names.index(filter_name)
+        await self._change_motion_status(MotionStatus.SLEWING)
         self._driver.set_filter_pos(pos)
+        await self._change_motion_status(MotionStatus.POSITIONED)
 
     async def get_filter(self, **kwargs: Any) -> str:
         """Get currently set filter.
