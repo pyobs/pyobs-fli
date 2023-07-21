@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyobs-fli"
-version = "1.1.0"
+version = "1.1.1"
 description = "pyobs module for FLI cameras"
 authors = ["Tim-Oliver Husser <thusser@uni-goettingen.de>"]
 license = "MIT"
@@ -11,7 +11,7 @@ script = "build.py"
 generate-setup-file = false
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = ">=3.9,<3.12"
 astropy = "^5.0"
 numpy = "^1.21"
 pyobs-core = "^1.0"
@@ -21,10 +21,10 @@ black = "^21.12b0"
 pre-commit = "^2.16"
 sphinx-rtd-theme = "^1.0"
 Sphinx = "^4.4"
-Cython = "^0.29"
+cython = "^3.0.0"
 
 [build-system]
-requires = ["poetry-core>=1.0.0", "Cython>=0.29.0", "numpy>=1.21.0", "setuptools"]
+requires = ["poetry-core>=1.0.0", "Cython>=3.0.0", "numpy>=1.21.0", "setuptools"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
