@@ -8,7 +8,7 @@ import numpy as np
 cimport numpy as np
 np.import_array()
 
-from libfli cimport *
+from .libfli cimport *
 
 
 DeviceInfo = namedtuple('DeviceInfo', ['domain', 'filename', 'name'])
