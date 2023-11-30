@@ -2,7 +2,7 @@ import asyncio
 import logging
 import math
 from datetime import datetime
-from typing import Tuple, Any, Optional, Dict
+from typing import Tuple, Any, Optional, Dict, List
 import numpy as np
 
 from pyobs.interfaces import ICamera, IWindow, IBinning, ICooling, IAbortable
@@ -115,6 +115,14 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         """
         self._binning = (x, y)
         log.info("Setting binning to %dx%d...", x, y)
+
+    async def list_binnings(self, **kwargs: Any) -> List[Tuple[int, int]]:
+        """List available binnings.
+
+        Returns:
+            List of available binnings as (x, y) tuples.
+        """
+        return [(1, 1), (2, 2), (3, 3)]
 
     async def _expose(self, exposure_time: float, open_shutter: bool, abort_event: asyncio.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
