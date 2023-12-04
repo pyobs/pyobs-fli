@@ -177,19 +177,8 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         # do exposure
         self._driver.start_exposure()
 
-        # wait for exposure to finish
-        while True:
-            # aborted?
-            if abort_event.is_set():
-                await self._change_exposure_status(ExposureStatus.IDLE)
-                raise InterruptedError("Aborted exposure.")
-
-            # is exposure finished?
-            if self._driver.is_exposing():
-                break
-            else:
-                # sleep a little
-                await asyncio.sleep(0.01)
+        # wait exposure
+        await self._wait_exposure(abort_event, exposure_time, open_shutter)
 
         # readout
         log.info("Exposure finished, reading out...")
@@ -231,6 +220,27 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         # return FITS image
         log.info("Readout finished.")
         return image
+
+    async def _wait_exposure(self, abort_event: asyncio.Event, exposure_time: float, open_shutter: bool) -> None:
+        """Wait for exposure to finish.
+
+        Params:
+            abort_event: Event that aborts the exposure.
+            exposure_time: Exp time in sec.
+        """
+
+        while True:
+            # aborted?
+            if abort_event.is_set():
+                await self._change_exposure_status(ExposureStatus.IDLE)
+                raise InterruptedError("Aborted exposure.")
+
+            # is exposure finished?
+            if self._driver.is_exposing():
+                break
+            else:
+                # sleep a little
+                await asyncio.sleep(0.01)
 
     async def _abort_exposure(self) -> None:
         """Abort the running exposure. Should be implemented by derived class.
