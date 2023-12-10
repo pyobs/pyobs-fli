@@ -122,7 +122,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         Returns:
             List of available binnings as (x, y) tuples.
         """
-        return [(1, 1), (2, 2), (3, 3)]
+        return [(1, 1), (2, 2), (3, 3), (4, 4)]
 
     async def _expose(self, exposure_time: float, open_shutter: bool, abort_event: asyncio.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
