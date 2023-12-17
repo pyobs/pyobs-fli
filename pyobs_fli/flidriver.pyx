@@ -459,7 +459,7 @@ cdef class FliDriver:
         cdef long wheel
 
         # get active filter wheel
-        res = FLIGetActiveWheel(self._device, wheel)
+        res = FLIGetActiveWheel(self._device, &wheel)
         if res != 0:
             raise ValueError('Could not fetch active filter wheel.')
         return wheel
@@ -475,7 +475,7 @@ cdef class FliDriver:
         cdef long count
 
         # get active filter wheel
-        res = FLIGetFilterCount(self._device, count)
+        res = FLIGetFilterCount(self._device, &count)
         if res != 0:
             raise ValueError('Could not fetch filter count.')
         return count
