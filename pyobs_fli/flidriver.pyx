@@ -435,3 +435,47 @@ cdef class FliDriver:
         res = FLISetFilterPos(self._device, pos)
         if res != 0:
             raise ValueError('Could not set filter position.')
+
+    def set_active_filter_wheel(self, wheel: int) -> None:
+        """Set active filter wheel.
+
+        Args:
+            wheel: Number of wheel to set active.
+        """
+
+        # set active filter wheel
+        res = FLISetActiveWheel(self._device, wheel)
+        if res != 0:
+            raise ValueError('Could not set active filter wheel.')
+
+    def get_active_filter_wheel(self) -> int:
+        """Returns active filter wheel.
+
+        Returns:
+            Number of active filter wheel.
+        """
+
+        # variables
+        cdef long wheel
+
+        # get active filter wheel
+        res = FLIGetActiveWheel(self._device, wheel)
+        if res != 0:
+            raise ValueError('Could not fetch active filter wheel.')
+        return wheel
+
+    def get_filter_count(self) -> int:
+        """Return filter count.
+
+        Returns:
+            Filter count.
+        """
+
+        # variables
+        cdef long count
+
+        # get active filter wheel
+        res = FLIGetFilterCount(self._device, count)
+        if res != 0:
+            raise ValueError('Could not fetch filter count.')
+        return count
