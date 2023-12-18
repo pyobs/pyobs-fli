@@ -479,3 +479,23 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not fetch filter count.')
         return count
+
+    def get_filter_name(self, pos: int) -> str:
+        """Get filter name.
+
+        Args:
+            pos: Position of filter.
+
+        Returns: Name of filter.
+        """
+
+        # variables
+        cdef char name[100]
+
+        # get it
+        res = FLIGetFilterName(self._device, <char*>name, 100)
+        if res != 0:
+            raise ValueError('Could not fetch filter name.')
+
+        # return it
+        return bytes(name).decode('utf-8')
