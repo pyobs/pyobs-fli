@@ -493,7 +493,7 @@ cdef class FliDriver:
         cdef char name[100]
 
         # get it
-        res = FLIGetFilterName(self._device, <char*>name, 100)
+        res = FLIGetFilterName(self._device, pos, <char*>name, 100)
         if res != 0:
             raise ValueError('Could not fetch filter name.')
 
