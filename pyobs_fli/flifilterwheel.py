@@ -74,16 +74,17 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         """
 
         # get filter pos and set it
-        for wheel in range(len(self._filter_names)):
-            if filter_name in self._filter_names[wheel]:
-                pos = self._filter_names[wheel].index(filter_name)
-                break
+        if filter_name in self._filter_names[0]:
+            p = self._filter_names[0].index(filter_name)
+            pos = 0 if p == 0 else 7 - p
+        elif filter_name in self._filter_names[1]:
+            p = self._filter_names[1].index(filter_name)
+            pos = 7 * p
         else:
             raise exc.ModuleError("Filter not found")
 
         # move filter
         await self._change_motion_status(MotionStatus.SLEWING)
-        self._driver.set_active_filter_wheel(wheel)
         self._driver.set_filter_pos(pos)
         await self._change_motion_status(MotionStatus.POSITIONED)
 
@@ -95,9 +96,11 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         """
 
         # get filter pos and return filter name
-        wheel = self._driver.get_active_filter_wheel()
-        pos = self._driver.get_filter_pos()
-        return self._filter_names[wheel][pos]
+        div, mod = divmod(self._driver.get_filter_pos(), 7)
+        if mod == 0:
+            return self._filter_names[1][div]
+        else:
+            return self._filter_names[0][0 if mod == 0 else 7 - mod]
 
     async def init(self, **kwargs: Any) -> None:
         """Initialize device.
