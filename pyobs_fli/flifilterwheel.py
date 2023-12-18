@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, Any, Optional, Dict, List
+from typing import Tuple, Any, Optional, Dict, List, Union
 from itertools import chain
 
 from pyobs.mixins import MotionStatusMixin
@@ -18,7 +18,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
 
     __module__ = "pyobs_fli"
 
-    def __init__(self, filter_names: Optional[List[str], List[List[str]]], **kwargs: Any):
+    def __init__(self, filter_names: Union[List[str], List[List[str]]], **kwargs: Any):
         """Initializes a new FliFilterWheel.
 
         Args:
