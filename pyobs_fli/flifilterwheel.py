@@ -76,7 +76,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         # get filter pos and set it
         for wheel in range(len(self._filter_names)):
             if filter_name in self._filter_names[wheel]:
-                pos = self._filter_names.index(filter_name)
+                pos = self._filter_names[wheel].index(filter_name)
                 break
         else:
             raise exc.ModuleError("Filter not found")
