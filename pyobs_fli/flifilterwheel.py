@@ -1,5 +1,6 @@
 import logging
 from typing import Tuple, Any, Optional, Dict, List
+from itertools import chain
 
 from pyobs.mixins import MotionStatusMixin
 from pyobs.modules import Module
@@ -7,6 +8,7 @@ from pyobs.interfaces import IFilters, IFitsHeaderBefore
 from pyobs.utils.enums import MotionStatus
 from pyobs_fli.flibase import FliBaseMixin
 from pyobs_fli.flidriver import DeviceType
+import pyobs.utils.exceptions as exc
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
 
     __module__ = "pyobs_fli"
 
-    def __init__(self, filter_names: List[str], **kwargs: Any):
+    def __init__(self, filter_names: Optional[List[str], List[List[str]]], **kwargs: Any):
         """Initializes a new FliFilterWheel.
 
         Args:
@@ -26,8 +28,10 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         FliBaseMixin.__init__(self, dev_type=DeviceType.FILTERWHEEL, **kwargs)
         MotionStatusMixin.__init__(self, motion_status_interfaces=["IFilters"])
 
-        # variables
+        # filter names, make it a list of lists, if not already is
         self._filter_names = filter_names
+        if isinstance(self._filter_names[0], str):
+            self._filter_names = [self._filter_names]
 
     async def open(self) -> None:
         """Open module."""
@@ -56,7 +60,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         Returns:
             List of available filters.
         """
-        return self._filter_names
+        return list(chain.from_iterable(self._filter_names))
 
     async def set_filter(self, filter_name: str, **kwargs: Any) -> None:
         """Set the current filter.
@@ -70,8 +74,16 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         """
 
         # get filter pos and set it
-        pos = self._filter_names.index(filter_name)
+        for wheel in range(len(self._filter_names)):
+            if filter_name in self._filter_names[wheel]:
+                pos = self._filter_names.index(filter_name)
+                break
+        else:
+            raise exc.ModuleError("Filter not found")
+
+        # move filter
         await self._change_motion_status(MotionStatus.SLEWING)
+        self._driver.set_active_filter_wheel(wheel)
         self._driver.set_filter_pos(pos)
         await self._change_motion_status(MotionStatus.POSITIONED)
 
@@ -83,8 +95,9 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         """
 
         # get filter pos and return filter name
+        wheel = self._driver.get_active_filter_wheel()
         pos = self._driver.get_filter_pos()
-        return self._filter_names[pos]
+        return self._filter_names[wheel][pos]
 
     async def init(self, **kwargs: Any) -> None:
         """Initialize device.
