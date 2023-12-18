@@ -100,7 +100,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         if mod == 0:
             return self._filter_names[1][div]
         else:
-            return self._filter_names[0][0 if mod == 0 else 7 - mod]
+            return self._filter_names[0][7 - mod]
 
     async def init(self, **kwargs: Any) -> None:
         """Initialize device.
