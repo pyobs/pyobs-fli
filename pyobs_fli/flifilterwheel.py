@@ -79,11 +79,12 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
             pos = 0 if p == 0 else 7 - p
         elif filter_name in self._filter_names[1]:
             p = self._filter_names[1].index(filter_name)
-            pos = 7 * p
+            pos = 7 * (p + 1)
         else:
             raise exc.ModuleError("Filter not found")
 
         # move filter
+        log.info(f"Setting filter to {filter_name} at position {pos}...")
         await self._change_motion_status(MotionStatus.SLEWING)
         self._driver.set_filter_pos(pos)
         await self._change_motion_status(MotionStatus.POSITIONED)
@@ -99,7 +100,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         div, mod = divmod(self._driver.get_filter_pos(), 7)
         try:
             if mod == 0:
-                return self._filter_names[1][div]
+                return self._filter_names[0][0] if div == 0 else self._filter_names[1][div]
             else:
                 return self._filter_names[0][7 - mod]
         except IndexError:
