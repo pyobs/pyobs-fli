@@ -100,7 +100,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         div, mod = divmod(self._driver.get_filter_pos(), 7)
         try:
             if mod == 0:
-                return self._filter_names[0][0] if div == 0 else self._filter_names[1][div]
+                return self._filter_names[0][0] if div == 0 else self._filter_names[1][div - 1]
             else:
                 return self._filter_names[0][7 - mod]
         except IndexError:
