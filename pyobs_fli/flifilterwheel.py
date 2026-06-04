@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, Any, Optional, Dict, List, Union
+from typing import Any
 from itertools import chain
 
 from pyobs.mixins import MotionStatusMixin
@@ -18,7 +18,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
 
     __module__ = "pyobs_fli"
 
-    def __init__(self, filter_names: Union[List[str], List[List[str]]], **kwargs: Any):
+    def __init__(self, filter_names: list[str] | list[list[str]], **kwargs: Any):
         """Initializes a new FliFilterWheel.
 
         Args:
@@ -54,7 +54,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         await Module.close(self)
         await FliBaseMixin.close(self)
 
-    async def list_filters(self, **kwargs: Any) -> List[str]:
+    async def list_filters(self, **kwargs: Any) -> list[str]:
         """List available filters.
 
         Returns:
@@ -122,7 +122,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         """
         pass
 
-    async def stop_motion(self, device: Optional[str] = None, **kwargs: Any) -> None:
+    async def stop_motion(self, device: str | None = None, **kwargs: Any) -> None:
         """Stop the motion.
 
         Args:
@@ -139,8 +139,8 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         return True
 
     async def get_fits_header_before(
-        self, namespaces: Optional[List[str]] = None, **kwargs: Any
-    ) -> Dict[str, Tuple[Any, str]]:
+        self, namespaces: list[str] | None = None, **kwargs: Any
+    ) -> dict[str, tuple[Any, str]]:
         """Returns FITS header for the current status of this module.
 
         Args:
