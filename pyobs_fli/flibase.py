@@ -41,7 +41,7 @@ class FliBaseMixin:
         self._device: Any | None = None
 
         # keep alive
-        self.add_background_task(self._keep_alive)
+        self.add_background_task(self._keep_alive)  # type: ignore[attr-defined]
 
     async def open(self) -> None:
         """Open module."""
@@ -76,7 +76,7 @@ class FliBaseMixin:
         try:
             self._driver.open()
         except ValueError as e:
-            raise ValueError("Could not open FLI camera: %s", e)
+            raise ValueError(f"Could not open FLI camera: {e}")
 
     async def close(self) -> None:
         # not open?

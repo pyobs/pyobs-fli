@@ -1,14 +1,18 @@
 import logging
-from typing import Any
 from itertools import chain
+from typing import Any
 
+import pyobs.utils.exceptions as exc
+from pyobs.events import FilterChangedEvent
+from pyobs.interfaces import IFilters, IFitsHeaderBefore, IReady
+from pyobs.interfaces.IFilters import FiltersCapabilities, FilterState
+from pyobs.interfaces.IReady import ReadyState
 from pyobs.mixins import MotionStatusMixin
 from pyobs.modules import Module
-from pyobs.interfaces import IFilters, IFitsHeaderBefore
 from pyobs.utils.enums import MotionStatus
+
 from pyobs_fli.flibase import FliBaseMixin
 from pyobs_fli.flidriver import DeviceType
-import pyobs.utils.exceptions as exc
 
 log = logging.getLogger(__name__)
 
@@ -28,52 +32,53 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         FliBaseMixin.__init__(self, dev_type=DeviceType.FILTERWHEEL, **kwargs)
         MotionStatusMixin.__init__(self, motion_status_interfaces=["IFilters"])
 
-        # filter names, make it a list of lists, if not already is
-        self._filter_names = filter_names
-        if isinstance(self._filter_names[0], str):
-            self._filter_names = [self._filter_names]
+        self._filter_names: list[list[str]] = (
+            [filter_names] if isinstance(filter_names[0], str) else filter_names  # type: ignore[arg-type,list-item]
+        )
+
+        self._current_filter = ""
 
     async def open(self) -> None:
         """Open module."""
         await Module.open(self)
         await FliBaseMixin.open(self)
+        await MotionStatusMixin.open(self)
 
-        # check
         if self._driver is None:
             raise ValueError("No driver found.")
 
-        # serial number
         serial = self._driver.get_serial_string()
         log.info("Connected to filter wheel with serial number: %s", serial)
 
-        # idle
         await self._change_motion_status(MotionStatus.IDLE)
+
+        if self._comm:
+            await self.comm.register_event(FilterChangedEvent)
+
+        all_filters = list(chain.from_iterable(self._filter_names))
+        await self.comm.set_capabilities(IFilters, FiltersCapabilities(filters=all_filters))
+
+        self._current_filter = self._resolve_filter_name(self._driver.get_filter_pos())
+        await self.comm.set_state(IFilters, FilterState(filter=self._current_filter))
+        await self.comm.set_state(IReady, ReadyState(ready=True))
 
     async def close(self) -> None:
         """Close the module."""
         await Module.close(self)
         await FliBaseMixin.close(self)
 
-    async def list_filters(self, **kwargs: Any) -> list[str]:
-        """List available filters.
-
-        Returns:
-            List of available filters.
-        """
-        return list(chain.from_iterable(self._filter_names))
+    def _resolve_filter_name(self, pos: int) -> str:
+        div, mod = divmod(pos, 7)
+        try:
+            if mod == 0:
+                return self._filter_names[0][0] if div == 0 else self._filter_names[1][div - 1]
+            else:
+                return self._filter_names[0][7 - mod]
+        except IndexError:
+            return ""
 
     async def set_filter(self, filter_name: str, **kwargs: Any) -> None:
-        """Set the current filter.
-
-        Args:
-            filter_name: Name of filter to set.
-
-        Raises:
-            ValueError: If an invalid filter was given.
-            MoveError: If filter wheel cannot be moved.
-        """
-
-        # get filter pos and set it
+        """Set the current filter."""
         if filter_name in self._filter_names[0]:
             p = self._filter_names[0].index(filter_name)
             pos = 0 if p == 0 else 7 - p
@@ -83,73 +88,28 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         else:
             raise exc.ModuleError("Filter not found")
 
-        # move filter
-        log.info(f"Setting filter to {filter_name} at position {pos}...")
+        log.info("Setting filter to %s at position %d...", filter_name, pos)
         await self._change_motion_status(MotionStatus.SLEWING)
         self._driver.set_filter_pos(pos)
+        self._current_filter = filter_name
         await self._change_motion_status(MotionStatus.POSITIONED)
-
-    async def get_filter(self, **kwargs: Any) -> str:
-        """Get currently set filter.
-
-        Returns:
-            Name of currently set filter.
-        """
-
-        # get filter pos and return filter name
-        div, mod = divmod(self._driver.get_filter_pos(), 7)
-        try:
-            if mod == 0:
-                return self._filter_names[0][0] if div == 0 else self._filter_names[1][div - 1]
-            else:
-                return self._filter_names[0][7 - mod]
-        except IndexError:
-            return ""
+        await self.comm.send_event(FilterChangedEvent(filter_name))
+        await self.comm.set_state(IFilters, FilterState(filter=filter_name))
 
     async def init(self, **kwargs: Any) -> None:
-        """Initialize device.
-
-        Raises:
-            InitError: If device could not be initialized.
-        """
         pass
 
     async def park(self, **kwargs: Any) -> None:
-        """Park device.
-
-        Raises:
-            ParkError: If device could not be parked.
-        """
         pass
 
     async def stop_motion(self, device: str | None = None, **kwargs: Any) -> None:
-        """Stop the motion.
-
-        Args:
-            device: Name of device to stop, or None for all.
-        """
         pass
-
-    async def is_ready(self, **kwargs: Any) -> bool:
-        """Returns the device is "ready", whatever that means for the specific device.
-
-        Returns:
-            Whether device is ready
-        """
-        return True
 
     async def get_fits_header_before(
         self, namespaces: list[str] | None = None, **kwargs: Any
     ) -> dict[str, tuple[Any, str]]:
-        """Returns FITS header for the current status of this module.
-
-        Args:
-            namespaces: If given, only return FITS headers for the given namespaces.
-
-        Returns:
-            Dictionary containing FITS headers.
-        """
-        return {"FILTER": (await self.get_filter(), "Current filter")}
+        """Returns FITS header for the current status of this module."""
+        return {"FILTER": (self._current_filter, "Current filter")}
 
 
 __all__ = ["FliFilterWheel"]
