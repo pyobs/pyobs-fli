@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Optional, Union
+from typing import Any
 
 from pyobs_fli.flidriver import DeviceType
 
@@ -15,8 +15,8 @@ class FliBaseMixin:
     def __init__(
         self,
         dev_type: DeviceType,
-        dev_name: Optional[str] = None,
-        dev_path: Optional[str] = None,
+        dev_name: str | None = None,
+        dev_path: str | None = None,
         keep_alive_ping: int = 10,
         **kwargs: Any,
     ):
@@ -37,11 +37,11 @@ class FliBaseMixin:
         self._dev_name = dev_name
         self._dev_path = dev_path
         self._keep_alive_ping = keep_alive_ping
-        self._driver: Optional[FliDriver] = None
-        self._device: Optional[Any] = None
+        self._driver: FliDriver | None = None
+        self._device: Any | None = None
 
         # keep alive
-        self.add_background_task(self._keep_alive)
+        self.add_background_task(self._keep_alive)  # type: ignore[attr-defined]
 
     async def open(self) -> None:
         """Open module."""
@@ -76,7 +76,7 @@ class FliBaseMixin:
         try:
             self._driver.open()
         except ValueError as e:
-            raise ValueError("Could not open FLI camera: %s", e)
+            raise ValueError(f"Could not open FLI camera: {e}")
 
     async def close(self) -> None:
         # not open?
