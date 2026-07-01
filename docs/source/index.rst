@@ -55,10 +55,17 @@ This is an example configuration, tested on a FLI 230PL::
 Available classes
 *****************
 
-There is one single class for FLI cameras.
+There are two classes for FLI hardware: :class:`~pyobs_fli.FliCamera` for cameras, and
+:class:`~pyobs_fli.FliFilterWheel` for filter wheels.
 
-AsiCamera
+FliCamera
 =========
 .. autoclass:: pyobs_fli.FliCamera
+   :members:
+   :show-inheritance:
+
+FliFilterWheel
+==============
+.. autoclass:: pyobs_fli.FliFilterWheel
    :members:
    :show-inheritance:
