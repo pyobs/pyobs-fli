@@ -4,7 +4,7 @@ from typing import Any
 
 import pyobs.utils.exceptions as exc
 from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import IFilters, IFitsHeaderBefore, IReady
+from pyobs.interfaces import FitsHeaderEntry, IFilters, IFitsHeaderBefore, IReady
 from pyobs.interfaces.IFilters import FiltersCapabilities, FilterState
 from pyobs.interfaces.IReady import ReadyState
 from pyobs.mixins import MotionStatusMixin
@@ -107,9 +107,9 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
 
     async def get_fits_header_before(
         self, namespaces: list[str] | None = None, **kwargs: Any
-    ) -> dict[str, tuple[Any, str]]:
+    ) -> dict[str, FitsHeaderEntry]:
         """Returns FITS header for the current status of this module."""
-        return {"FILTER": (self._current_filter, "Current filter")}
+        return {"FILTER": FitsHeaderEntry(self._current_filter, "Current filter")}
 
 
 __all__ = ["FliFilterWheel"]
