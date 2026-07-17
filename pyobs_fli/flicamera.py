@@ -12,6 +12,7 @@ from pyobs.interfaces.ICooling import CoolingState
 from pyobs.interfaces.ITemperatures import SensorReading, TemperaturesState
 from pyobs.interfaces.IWindow import WindowCapabilities, WindowState
 from pyobs.modules.camera.basecamera import BaseCamera
+from pyobs.utils import exceptions as exc
 from pyobs.utils.enums import ExposureStatus
 
 from .flibase import FliBaseMixin
@@ -166,7 +167,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         while True:
             if abort_event.is_set():
                 await self._change_exposure_status(ExposureStatus.IDLE)
-                raise InterruptedError("Aborted exposure.")
+                raise exc.AbortedError("Aborted exposure.")
             if self._driver.is_exposing():
                 break
             await asyncio.sleep(0.01)
