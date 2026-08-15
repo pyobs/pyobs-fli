@@ -252,11 +252,11 @@ cdef class FliDriver:
         if res != 0:
             raise ValueError('Could not start exposure.')
 
-    def is_exposing(self) -> bool:
-        """Checks, whether the camera is currently exposing
+    def is_data_ready(self) -> bool:
+        """Checks, whether the camera has finished exposing and the image data is ready to be read out.
 
         Returns:
-            bool: Whether camera is currently exposing.
+            bool: Whether data is ready.
 
         Raises:
             ValueError: If fetching device or exposure status failed.
