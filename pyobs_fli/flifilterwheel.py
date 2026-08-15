@@ -47,7 +47,8 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         if self._driver is None:
             raise ValueError("No driver found.")
 
-        serial = self._driver.get_serial_string()
+        driver = self._driver
+        serial = await self._run_blocking_or_raise(driver.get_serial_string)
         log.info("Connected to filter wheel with serial number: %s", serial)
 
         await self._change_motion_status(MotionStatus.IDLE)
@@ -58,7 +59,8 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         all_filters = list(chain.from_iterable(self._filter_names))
         await self.comm.set_capabilities(IFilters, FiltersCapabilities(filters=all_filters))
 
-        self._current_filter = self._resolve_filter_name(self._driver.get_filter_pos())
+        pos = await self._run_blocking_or_raise(driver.get_filter_pos)
+        self._current_filter = self._resolve_filter_name(pos)
         await self.comm.set_state(IFilters, FilterState(filter=self._current_filter))
         await self.comm.set_state(IReady, ReadyState(ready=True))
 
@@ -90,7 +92,12 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
 
         log.info("Setting filter to %s at position %d...", filter_name, pos)
         await self._change_motion_status(MotionStatus.SLEWING)
-        self._driver.set_filter_pos(pos)
+        driver = self._driver
+
+        def _set() -> None:
+            driver.set_filter_pos(pos)
+
+        await self._run_blocking_or_raise(_set)
         self._current_filter = filter_name
         await self._change_motion_status(MotionStatus.POSITIONED)
         await self.comm.send_event(FilterChangedEvent(filter_name))

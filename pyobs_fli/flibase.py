@@ -1,10 +1,19 @@
 import asyncio
 import logging
-from typing import Any
+import threading
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 from pyobs_fli.flidriver import DeviceType
 
 log = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+# FLI SDK calls are blocking and are made directly on the event loop thread (see _run_blocking).
+# If the device has gone unresponsive, they can hang indefinitely, so they're bounded with a
+# timeout rather than let a single dead device freeze the whole module.
+_SDK_CALL_TIMEOUT = 5.0
 
 
 class FliBaseMixin:
@@ -43,46 +52,97 @@ class FliBaseMixin:
         # keep alive
         self.add_background_task(self._keep_alive)  # type: ignore[attr-defined]
 
+    @staticmethod
+    async def _run_blocking(func: Callable[[], None], timeout: float = _SDK_CALL_TIMEOUT) -> bool:
+        """Run a blocking FLI SDK call in a daemon thread, so a hung call can't freeze the module.
+
+        A plain executor isn't used here, since its worker threads are non-daemon and Python joins
+        them on interpreter shutdown -- a hung call would then just move the freeze to process exit.
+
+        Returns:
+            True if func completed within timeout, False if it's still running in the background.
+        """
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[None] = loop.create_future()
+
+        def _wrapper() -> None:
+            try:
+                func()
+            finally:
+                loop.call_soon_threadsafe(future.set_result, None)
+
+        threading.Thread(target=_wrapper, daemon=True).start()
+        try:
+            await asyncio.wait_for(future, timeout=timeout)
+            return True
+        except TimeoutError:
+            return False
+
+    async def _run_blocking_or_raise(self, func: Callable[[], _T], timeout: float = _SDK_CALL_TIMEOUT) -> _T:
+        """Run a blocking FLI SDK call in a thread, returning its result or re-raising what it raised.
+
+        Unlike _run_blocking(), this also carries the callable's return value/exception back to the
+        caller -- several FLI calls drive control flow via their return value or a raised ValueError
+        (e.g. device enumeration, readout), which a bare fire-and-forget thread call would otherwise
+        silently lose.
+        """
+        outcome: list[Any] = []
+
+        def _wrapper() -> None:
+            try:
+                outcome.append(func())
+            except BaseException as e:
+                outcome.append(e)
+
+        if not await self._run_blocking(_wrapper, timeout=timeout):
+            raise TimeoutError(f"Timed out waiting for FLI SDK call after {timeout}s.")
+        value = outcome[0]
+        if isinstance(value, BaseException):
+            raise value
+        return cast(_T, value)
+
     async def open(self) -> None:
         """Open module."""
         from .flidriver import FliDriver
 
-        # list devices
-        devices = FliDriver.list_devices(self._dev_type)
-        if len(devices) == 0:
-            raise ValueError("No FLI device found.")
+        def _open() -> None:
+            # list devices
+            devices = FliDriver.list_devices(self._dev_type)
+            if len(devices) == 0:
+                raise ValueError("No FLI device found.")
 
-        # do we have a device name or path given?
-        if self._dev_name is not None or self._dev_path is not None:
-            # yes, find matching device
-            for dev in devices:
-                if dev.name.decode("utf-8") == self._dev_name or dev.filename.decode("utf-8") == self._dev_path:
-                    self._device = dev
-                    break
+            # do we have a device name or path given?
+            if self._dev_name is not None or self._dev_path is not None:
+                # yes, find matching device
+                for dev in devices:
+                    if dev.name.decode("utf-8") == self._dev_name or dev.filename.decode("utf-8") == self._dev_path:
+                        self._device = dev
+                        break
+                else:
+                    raise ValueError("No matching device found, check dev_name/dev_path.")
+
             else:
-                raise ValueError("No matching device found, check dev_name/dev_path.")
+                # no, just pick first one
+                self._device = devices[0]
 
-        else:
-            # no, just pick first one
-            self._device = devices[0]
-
-        # open driver
-        log.info(
-            'Opening connection to "%s" at %s...',
-            self._device.name.decode("utf-8"),
-            self._device.filename.decode("utf-8"),
-        )
-        self._driver = FliDriver(self._device)
-        try:
+            # open driver
+            log.info(
+                'Opening connection to "%s" at %s...',
+                self._device.name.decode("utf-8"),
+                self._device.filename.decode("utf-8"),
+            )
+            self._driver = FliDriver(self._device)
             self._driver.open()
-        except ValueError as e:
-            raise ValueError(f"Could not open FLI camera: {e}")
+
+        await self._run_blocking_or_raise(_open)
 
     async def close(self) -> None:
         # not open?
         if self._driver is not None:
             # close connection
-            self._driver.close()
+            driver = self._driver
+            if not await self._run_blocking(driver.close):
+                log.error("Timed out closing FLI device after %.1fs.", _SDK_CALL_TIMEOUT)
             self._driver = None
 
     async def _keep_alive(self) -> None:
@@ -93,13 +153,18 @@ class FliBaseMixin:
             # is there a valid driver?
             if self._driver is not None:
                 # then we should be able to call it
+                driver = self._driver
                 try:
-                    self._driver.get_serial_string()
+                    await self._run_blocking_or_raise(driver.get_serial_string)
                 except ValueError:
                     # no? then reopen driver
                     log.warning("Lost connection to camera, reopening it.")
-                    self._driver.close()
-                    self._driver = FliDriver(self._device)
+
+                    def _reopen() -> None:
+                        driver.close()
+                        self._driver = FliDriver(self._device)
+
+                    await self._run_blocking_or_raise(_reopen)
 
             await asyncio.sleep(self._keep_alive_ping)
 
