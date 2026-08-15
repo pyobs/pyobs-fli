@@ -1,19 +1,19 @@
 [project]
 name = "pyobs-fli"
-version = "2.0.0.dev5"
+version = "2.0.0.dev6"
 description = "pyobs module for FLI cameras"
 authors = [{ name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" }]
 requires-python = ">=3.11,<3.14"
 license = "MIT"
 dependencies = [
-    "astropy>=7.0.1,<8",
+    "astropy>=7.0.1,<9",
     "numpy>=2.2.5,<3",
-    "pyobs-core>=2.0.0.dev6,<3",
+    "pyobs-core>=2.0.0.dev48,<3",
 ]
 
 [dependency-groups]
 dev = [
-    "black>=25.1.0,<26",
+    "black>=25.1.0,<27",
     "pre-commit>=4.2.0,<5",
     "ruff>=0.9.0",
     "pyrefly>=1.1.1",

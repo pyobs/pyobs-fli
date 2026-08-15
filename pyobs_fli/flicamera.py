@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import math
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,12 +13,15 @@ from pyobs.interfaces.ICooling import CoolingState
 from pyobs.interfaces.ITemperatures import SensorReading, TemperaturesState
 from pyobs.interfaces.IWindow import WindowCapabilities, WindowState
 from pyobs.modules.camera.basecamera import BaseCamera
+from pyobs.utils import exceptions as exc
 from pyobs.utils.enums import ExposureStatus
 
 from .flibase import FliBaseMixin
 from .flidriver import DeviceType
 
 log = logging.getLogger(__name__)
+
+_READOUT_TIMEOUT = 60.0
 
 
 class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, ITemperatures, IAbortable):
@@ -50,11 +54,16 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         if self._driver is None:
             raise ValueError("No driver found.")
 
-        serial = self._driver.get_serial_string()
-        log.info("Connected to camera with serial number: %s", serial)
+        driver = self._driver
 
-        self._window, self._binning = self._driver.get_window_binning()
-        self._full_frame = self._driver.get_full_frame()
+        def _get_info() -> tuple[str, tuple[int, int, int, int], tuple[int, int], tuple[int, int, int, int]]:
+            serial = driver.get_serial_string()
+            window, binning = driver.get_window_binning()
+            full_frame = driver.get_full_frame()
+            return serial, window, binning, full_frame
+
+        serial, self._window, self._binning, self._full_frame = await self._run_blocking_or_raise(_get_info)
+        log.info("Connected to camera with serial number: %s", serial)
 
         if self._temp_setpoint is not None:
             await self.set_cooling(True, self._temp_setpoint)
@@ -106,9 +115,9 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
 
         if self._driver is None:
             raise ValueError("No camera driver.")
+        driver = self._driver
 
         log.info("Set binning to %dx%d.", self._binning[0], self._binning[1])
-        self._driver.set_binning(*self._binning)
 
         width = int(math.floor(self._window[2]) / self._binning[0])
         height = int(math.floor(self._window[3]) / self._binning[1])
@@ -121,32 +130,50 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
             self._window[0],
             self._window[1],
         )
-        self._driver.set_window(self._window[0], self._window[1], width, height)
 
-        self._driver.init_exposure(open_shutter)
-        self._driver.set_exposure_time(int(exposure_time * 1000.0))
+        def _prepare() -> None:
+            driver.set_binning(*self._binning)
+            driver.set_window(self._window[0], self._window[1], width, height)
+            driver.init_exposure(open_shutter)
+            driver.set_exposure_time(int(exposure_time * 1000.0))
+
+        await self._run_blocking_or_raise(_prepare)
 
         log.info(
             "Starting exposure with %s shutter for %.2f seconds...", "open" if open_shutter else "closed", exposure_time
         )
         date_obs = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")
 
-        self._driver.start_exposure()
+        await self._run_blocking_or_raise(driver.start_exposure)
         await self._wait_exposure(abort_event, exposure_time, open_shutter)
 
         log.info("Exposure finished, reading out...")
         await self._change_exposure_status(ExposureStatus.READOUT)
         width = int(math.floor(self._window[2] / self._binning[0]))
         height = int(math.floor(self._window[3] / self._binning[1]))
-        img = np.zeros((height, width), dtype=np.uint16)
-        for row in range(height):
-            img[row, :] = self._driver.grab_row(width)
+
+        def _readout() -> np.ndarray:
+            img = np.zeros((height, width), dtype=np.uint16)
+            for row in range(height):
+                img[row, :] = driver.grab_row(width)
+            return img
+
+        img = await self._run_blocking_or_raise(_readout, timeout=_READOUT_TIMEOUT)
+
+        def _get_headers() -> tuple[float, float, tuple[int, int, int, int]]:
+            return (
+                driver.get_temp(FliTemperature.CCD),
+                driver.get_cooler_power(),
+                driver.get_visible_frame(),
+            )
+
+        ccd_temp, cooler_power, visible_frame = await self._run_blocking_or_raise(_get_headers)
 
         image = Image(img)  # type: ignore[arg-type]
         image.header["DATE-OBS"] = (date_obs, "Date and time of start of exposure")
         image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
-        image.header["DET-TEMP"] = (self._driver.get_temp(FliTemperature.CCD), "CCD temperature [C]")
-        image.header["DET-COOL"] = (self._driver.get_cooler_power(), "Cooler power [percent]")
+        image.header["DET-TEMP"] = (ccd_temp, "CCD temperature [C]")
+        image.header["DET-COOL"] = (cooler_power, "Cooler power [percent]")
         image.header["DET-TSET"] = (self._temp_setpoint, "Cooler setpoint [C]")
         image.header["INSTRUME"] = (self._driver.name, "Name of instrument")
         image.header["XBINNING"] = image.header["DET-BIN1"] = (self._binning[0], "Binning factor used on X axis")
@@ -157,24 +184,32 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         image.header["DATAMAX"] = (float(np.max(img)), "Maximum data value")
         image.header["DATAMEAN"] = (float(np.mean(img)), "Mean data value")
 
-        self.set_biassec_trimsec(image.header, *self._driver.get_visible_frame())
+        self.set_biassec_trimsec(image.header, *visible_frame)
 
         log.info("Readout finished.")
         return image
 
     async def _wait_exposure(self, abort_event: asyncio.Event, exposure_time: float, open_shutter: bool) -> None:
-        while True:
-            if abort_event.is_set():
-                await self._change_exposure_status(ExposureStatus.IDLE)
-                raise InterruptedError("Aborted exposure.")
-            if self._driver.is_exposing():
-                break
-            await asyncio.sleep(0.01)
+        if self._driver is None:
+            raise ValueError("No camera driver.")
+        driver = self._driver
+
+        def _wait() -> bool:
+            while True:
+                if driver.is_exposing():
+                    return not abort_event.is_set()
+                if abort_event.is_set():
+                    return False
+                time.sleep(0.01)
+
+        if not await self._run_blocking_or_raise(_wait, timeout=exposure_time + 30):
+            await self._change_exposure_status(ExposureStatus.IDLE)
+            raise exc.AbortedError("Aborted exposure.")
 
     async def _abort_exposure(self) -> None:
         if self._driver is None:
             raise ValueError("No camera driver.")
-        self._driver.cancel_exposure()
+        await self._run_blocking_or_raise(self._driver.cancel_exposure)
 
     async def set_cooling(self, enabled: bool, setpoint: float, **kwargs: Any) -> None:
         """Enables/disables cooling and sets setpoint."""
@@ -188,7 +223,12 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
 
         self._temp_setpoint = setpoint if enabled else None
         self._cooling_enabled = enabled
-        self._driver.set_temperature(float(setpoint) if setpoint is not None else 20.0)
+        driver = self._driver
+
+        def _set() -> None:
+            driver.set_temperature(float(setpoint) if setpoint is not None else 20.0)
+
+        await self._run_blocking_or_raise(_set)
         await self.comm.set_state(
             ICooling, CoolingState(setpoint=setpoint if setpoint is not None else 20.0, power=None, enabled=enabled)
         )
@@ -200,9 +240,16 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         while True:
             try:
                 if self._driver is not None:
-                    t_ccd = self._driver.get_temp(FliTemperature.CCD)
-                    t_base = self._driver.get_temp(FliTemperature.BASE)
-                    power = self._driver.get_cooler_power()
+                    driver = self._driver
+
+                    def _poll() -> tuple[float, float, float]:
+                        return (
+                            driver.get_temp(FliTemperature.CCD),
+                            driver.get_temp(FliTemperature.BASE),
+                            driver.get_cooler_power(),
+                        )
+
+                    t_ccd, t_base, power = await self._run_blocking_or_raise(_poll)
                     setpoint = self._temp_setpoint if self._temp_setpoint is not None else 20.0
                     await self.comm.set_state(
                         ICooling, CoolingState(setpoint=setpoint, power=round(power), enabled=self._cooling_enabled)
