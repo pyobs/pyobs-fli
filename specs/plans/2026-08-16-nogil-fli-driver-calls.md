@@ -1,6 +1,6 @@
 # Plan: Release the GIL around libfli calls
 
-Status: in progress
+Status: implemented
 
 Tracks: https://github.com/pyobs/pyobs-fli/issues/75
 
@@ -101,6 +101,6 @@ only be confirmed on-site.
       pre-existing, separately-flagged `get_model()` uninitialized-variable warning).
 - [x] Full build (`uv sync`) succeeds; `import pyobs_fli.flidriver` works and
       `FliDriver.list_devices()` runs cleanly through the new `nogil` code path.
-- [ ] Open a PR against `develop` (matches this repo's branch convention — dependabot/feature PRs
-      land on `develop`, which then gets version-bumped into `main`).
-- [ ] Update this doc's `Status:` to `implemented` once merged.
+- [x] Open a PR against `develop` (matches this repo's branch convention — dependabot/feature PRs
+      land on `develop`, which then gets version-bumped into `main`). Merged as #76.
+- [x] Update this doc's `Status:` to `implemented` once merged.
