@@ -42,26 +42,38 @@ cdef class FliDriver:
         cdef flidomain_t domain
         cdef char filename[1024]
         cdef char name[1024]
+        cdef flidomain_t list_domain = FLIDOMAIN_USB | device_type.value
+        cdef long res
+        cdef bint have_first
 
         # create list of USB camera
-        if FLICreateList(FLIDOMAIN_USB | device_type.value) != 0:
+        with nogil:
+            res = FLICreateList(list_domain)
+        if res != 0:
             raise ValueError('Could not create list of FLI cameras.')
 
         # init list of devices
         devices = []
 
         # get first camera
-        if FLIListFirst(&domain, <char*>filename, 1024, <char*>name, 1024) == 0:
+        with nogil:
+            have_first = FLIListFirst(&domain, <char*>filename, 1024, <char*>name, 1024) == 0
+        if have_first:
             # store first device
             devices.append(DeviceInfo(domain=domain, filename=filename, name=name))
 
             # loop other devices
-            while FLIListNext(&domain, <char*>filename, 1024, <char*>name, 1024) == 0:
+            while True:
+                with nogil:
+                    res = FLIListNext(&domain, <char*>filename, 1024, <char*>name, 1024)
+                if res != 0:
+                    break
                 # store device
                 devices.append(DeviceInfo(domain=domain, filename=filename, name=name))
 
         # clean up and return
-        FLIDeleteList()
+        with nogil:
+            FLIDeleteList()
         return devices
 
     """Storage for the device info."""
@@ -84,7 +96,12 @@ cdef class FliDriver:
         Raises:
             ValueError: If opening failed.
         """
-        res = FLIOpen(&self._device, self._device_info.filename, self._device_info.domain)
+        cdef bytes filename_bytes = self._device_info.filename
+        cdef char* filename = filename_bytes
+        cdef flidomain_t domain = self._device_info.domain
+        cdef long res
+        with nogil:
+            res = FLIOpen(&self._device, filename, domain)
         if res != 0:
             raise ValueError('Could not open device.')
 
@@ -94,7 +111,9 @@ cdef class FliDriver:
         Raises:
             ValueError: If closing failed.
         """
-        res = FLIClose(self._device)
+        cdef long res
+        with nogil:
+            res = FLIClose(self._device)
         if res != 0:
             raise ValueError('Could not open device.')
 
@@ -115,9 +134,11 @@ cdef class FliDriver:
 
         # variables
         cdef long width, hoffset, hbin, height, voffset, vbin
-        
+        cdef long res
+
         # get dimensions
-        res = FLIGetReadoutDimensions(self._device, &width, &hoffset, &hbin, &height, &voffset, &vbin)
+        with nogil:
+            res = FLIGetReadoutDimensions(self._device, &width, &hoffset, &hbin, &height, &voffset, &vbin)
         if res != 0:
             raise ValueError('Could not query readout dimensions.')
 
@@ -136,9 +157,11 @@ cdef class FliDriver:
 
         # variables
         cdef long ul_x, ul_y, lr_x, lr_y
+        cdef long res
 
         # get area
-        res = FLIGetVisibleArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
+        with nogil:
+            res = FLIGetVisibleArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
         if res != 0:
             raise ValueError('Could not query visible area.')
 
@@ -157,9 +180,11 @@ cdef class FliDriver:
 
         # variables
         cdef long ul_x, ul_y, lr_x, lr_y
+        cdef long res
 
         # get area
-        res = FLIGetArrayArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
+        with nogil:
+            res = FLIGetArrayArea(self._device, &ul_x, &ul_y, &lr_x, &lr_y)
         if res != 0:
             raise ValueError('Could not query total area.')
 
@@ -177,13 +202,19 @@ cdef class FliDriver:
             ValueError: If setting binning failed.
         """
 
+        cdef long x_c = x
+        cdef long y_c = y
+        cdef long res
+
         # set x binning
-        res = FLISetHBin(self._device, x)
+        with nogil:
+            res = FLISetHBin(self._device, x_c)
         if res != 0:
             raise ValueError('Could not set x binning.')
 
         # set y binning
-        res = FLISetVBin(self._device, y)
+        with nogil:
+            res = FLISetVBin(self._device, y_c)
         if res != 0:
             raise ValueError('Could not set y binning.')
 
@@ -200,8 +231,15 @@ cdef class FliDriver:
             ValueError: If setting the window failed.
         """
 
+        cdef long left_c = left
+        cdef long top_c = top
+        cdef long right_c = left + width
+        cdef long bottom_c = top + height
+        cdef long res
+
         # set window
-        res = FLISetImageArea(self._device, left, top, left + width, top + height)
+        with nogil:
+            res = FLISetImageArea(self._device, left_c, top_c, right_c, bottom_c)
         if res != 0:
             raise ValueError('Could not set window.')
 
@@ -215,13 +253,18 @@ cdef class FliDriver:
             ValueError: If initialization failed.
         """
 
+        cdef fliframe_t frame_type = FLI_FRAME_TYPE_NORMAL if open_shutter else FLI_FRAME_TYPE_DARK
+        cdef long res
+
         # set TDI
-        res = FLISetTDI(self._device, 0, 0)
+        with nogil:
+            res = FLISetTDI(self._device, 0, 0)
         if res != 0:
             raise ValueError('Could not set TDI.')
 
         # set frame type
-        res = FLISetFrameType(self._device, FLI_FRAME_TYPE_NORMAL if open_shutter else FLI_FRAME_TYPE_DARK)
+        with nogil:
+            res = FLISetFrameType(self._device, frame_type)
         if res != 0:
             raise ValueError('Could not set frame type.')
 
@@ -235,8 +278,12 @@ cdef class FliDriver:
             ValueError: If setting of exposure time failed.
         """
 
+        cdef long exptime_c = exptime
+        cdef long res
+
         # set exptime
-        res = FLISetExposureTime(self._device, exptime)
+        with nogil:
+            res = FLISetExposureTime(self._device, exptime_c)
         if res != 0:
             raise ValueError('Could not set exposure time.')
 
@@ -247,8 +294,11 @@ cdef class FliDriver:
             ValueError: If starting the exposure failed.
         """
 
+        cdef long res
+
         # expose
-        res = FLIExposeFrame(self._device)
+        with nogil:
+            res = FLIExposeFrame(self._device)
         if res != 0:
             raise ValueError('Could not start exposure.')
 
@@ -264,12 +314,15 @@ cdef class FliDriver:
 
         # variables
         cdef long status, timeleft
+        cdef long res
 
         # get status
-        res = FLIGetDeviceStatus(self._device, &status)
+        with nogil:
+            res = FLIGetDeviceStatus(self._device, &status)
         if res != 0:
             raise ValueError('Could not fetch device status.')
-        res = FLIGetExposureStatus(self._device, &timeleft)
+        with nogil:
+            res = FLIGetExposureStatus(self._device, &timeleft)
         if res != 0:
             raise ValueError('Could not fetch remaining exposure time.')
 
@@ -292,9 +345,12 @@ cdef class FliDriver:
 
         # variables
         cdef double temp
+        cdef flichannel_t channel_c = channel.value
+        cdef long res
 
         # get it
-        res = FLIReadTemperature(self._device, channel.value, &temp)
+        with nogil:
+            res = FLIReadTemperature(self._device, channel_c, &temp)
         if res != 0:
             raise ValueError('Could not fetch temperature.')
 
@@ -313,9 +369,11 @@ cdef class FliDriver:
 
         # variables
         cdef double power
+        cdef long res
 
         # get it
-        res = FLIGetCoolerPower(self._device, &power)
+        with nogil:
+            res = FLIGetCoolerPower(self._device, &power)
         if res != 0:
             raise ValueError('Could not fetch cooler power.')
 
@@ -340,9 +398,12 @@ cdef class FliDriver:
 
         # get pointer to data
         cdef void* row_data = <void*> row.data
+        cdef size_t width_c = width
+        cdef long res
 
         # call library
-        res = FLIGrabRow(self._device, row_data, width)
+        with nogil:
+            res = FLIGrabRow(self._device, row_data, width_c)
         if res != 0:
             raise ValueError('Could not grab row from camera.')
 
@@ -356,7 +417,9 @@ cdef class FliDriver:
             ValueError: If canceling failed.
 
         """
-        res = FLICancelExposure(self._device)
+        cdef long res
+        with nogil:
+            res = FLICancelExposure(self._device)
         if res != 0:
             raise ValueError('Could not cancel exposure.')
 
@@ -369,7 +432,10 @@ cdef class FliDriver:
         Raises:
             ValueError: If setting temperature failed.
         """
-        res = FLISetTemperature(self._device, setpoint)
+        cdef double setpoint_c = setpoint
+        cdef long res
+        with nogil:
+            res = FLISetTemperature(self._device, setpoint_c)
         if res != 0:
             raise ValueError('Could not set temperature.')
 
@@ -383,9 +449,11 @@ cdef class FliDriver:
         # variables
         cdef char *model
         cdef size_t len
+        cdef long res
 
         # get it
-        res = FLIGetModel(self._device, model, len)
+        with nogil:
+            res = FLIGetModel(self._device, model, len)
         if res != 0:
             raise ValueError('Could not fetch model.')
 
@@ -397,9 +465,11 @@ cdef class FliDriver:
 
         # variables
         cdef char serial[1024]
+        cdef long res
 
         # get it
-        res = FLIGetSerialString(self._device, <char*>serial, 1024)
+        with nogil:
+            res = FLIGetSerialString(self._device, <char*>serial, 1024)
         if res != 0:
             raise ValueError('Could not fetch serial string.')
 
@@ -415,9 +485,11 @@ cdef class FliDriver:
 
         # variables
         cdef long pos
+        cdef long res
 
         # get it
-        res = FLIGetFilterPos(self._device, &pos)
+        with nogil:
+            res = FLIGetFilterPos(self._device, &pos)
         if res != 0:
             raise ValueError('Could not fetch filter position.')
 
@@ -431,8 +503,12 @@ cdef class FliDriver:
             pos: New filter position.
         """
 
+        cdef long pos_c = pos
+        cdef long res
+
         # set filter pos
-        res = FLISetFilterPos(self._device, pos)
+        with nogil:
+            res = FLISetFilterPos(self._device, pos_c)
         if res != 0:
             raise ValueError('Could not set filter position.')
 
@@ -443,8 +519,12 @@ cdef class FliDriver:
             wheel: Number of wheel to set active.
         """
 
+        cdef long wheel_c = wheel
+        cdef long res
+
         # set active filter wheel
-        res = FLISetActiveWheel(self._device, wheel)
+        with nogil:
+            res = FLISetActiveWheel(self._device, wheel_c)
         if res != 0:
             raise ValueError('Could not set active filter wheel.')
 
@@ -457,9 +537,11 @@ cdef class FliDriver:
 
         # variables
         cdef long wheel
+        cdef long res
 
         # get active filter wheel
-        res = FLIGetActiveWheel(self._device, &wheel)
+        with nogil:
+            res = FLIGetActiveWheel(self._device, &wheel)
         if res != 0:
             raise ValueError('Could not fetch active filter wheel.')
         return wheel
@@ -473,9 +555,11 @@ cdef class FliDriver:
 
         # variables
         cdef long count
+        cdef long res
 
         # get active filter wheel
-        res = FLIGetFilterCount(self._device, &count)
+        with nogil:
+            res = FLIGetFilterCount(self._device, &count)
         if res != 0:
             raise ValueError('Could not fetch filter count.')
         return count
@@ -491,9 +575,12 @@ cdef class FliDriver:
 
         # variables
         cdef char name[100]
+        cdef long pos_c = pos
+        cdef long res
 
         # get it
-        res = FLIGetFilterName(self._device, pos, <char*>name, 100)
+        with nogil:
+            res = FLIGetFilterName(self._device, pos_c, <char*>name, 100)
         if res != 0:
             raise ValueError('Could not fetch filter name.')
 

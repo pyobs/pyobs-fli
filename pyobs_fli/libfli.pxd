@@ -1,4 +1,4 @@
-cdef extern from "../lib/libfli.h":
+cdef extern from "../lib/libfli.h" nogil:
     # An opaque handle used by library functions to refer to FLI
     # hardware.
     cdef int FLI_INVALID_DEVICE
