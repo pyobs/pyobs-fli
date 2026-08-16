@@ -92,6 +92,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
             ),
         )
         await self.comm.set_state(IBinning, BinningState(x=self._binning[0], y=self._binning[1]))
+        await self.comm.set_state(ITemperatures, TemperaturesState())
 
     async def close(self) -> None:
         """Close the module."""
