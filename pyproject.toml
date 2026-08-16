@@ -17,6 +17,8 @@ dev = [
     "pre-commit>=4.2.0,<5",
     "ruff>=0.9.0",
     "pyrefly>=1.1.1",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
 ]
 
 [tool.scikit-build]
@@ -49,3 +51,6 @@ select = ["E", "F", "W", "I", "UP", "G"]
 [tool.pyrefly]
 python-version = "3.11"
 ignore-missing-imports = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
