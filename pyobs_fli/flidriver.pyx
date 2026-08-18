@@ -447,18 +447,17 @@ cdef class FliDriver:
         """
 
         # variables
-        cdef char *model
-        cdef size_t len
+        cdef char model[1024]
         cdef long res
 
         # get it
         with nogil:
-            res = FLIGetModel(self._device, model, len)
+            res = FLIGetModel(self._device, <char*>model, 1024)
         if res != 0:
             raise ValueError('Could not fetch model.')
 
         # return it
-        return str(model)
+        return bytes(model).decode('utf-8')
 
     def get_serial_string(self) -> str:
         """Returns serial string for camera."""
