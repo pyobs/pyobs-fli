@@ -156,13 +156,14 @@ class FliBaseMixin:
                 driver = self._driver
                 try:
                     await self._run_blocking_or_raise(driver.get_serial_string)
-                except ValueError:
+                except (ValueError, OSError):
                     # no? then reopen driver
                     log.warning("Lost connection to camera, reopening it.")
 
                     def _reopen() -> None:
                         driver.close()
                         self._driver = FliDriver(self._device)
+                        self._driver.open()
 
                     await self._run_blocking_or_raise(_reopen)
 
