@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 _READOUT_TIMEOUT = 60.0
 
 
-class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, ITemperatures, IAbortable):
+class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, ITemperatures, IAbortable):
     """A pyobs module for FLI cameras."""
 
     __module__ = "pyobs_fli"
@@ -35,8 +35,7 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
         Args:
             setpoint: Cooling temperature setpoint.
         """
-        BaseCamera.__init__(self, **kwargs)
-        FliBaseMixin.__init__(self, dev_type=DeviceType.CAMERA, **kwargs)
+        super().__init__(dev_type=DeviceType.CAMERA, **kwargs)
 
         self._temp_setpoint: float | None = setpoint
         self._cooling_enabled = False
