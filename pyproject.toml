@@ -11,6 +11,12 @@ dependencies = [
     "pyobs-core>=2.0.0.dev48,<3",
 ]
 
+[project.optional-dependencies]
+gui = [
+    "pyobs-core[gui]>=2.0.0.dev48,<3",
+    "qasync>=0.27",
+]
+
 [dependency-groups]
 dev = [
     "black>=25.1.0,<27",
@@ -20,6 +26,9 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
 ]
+
+[project.scripts]
+fli-gui = "pyobs_fli.gui:main"
 
 [tool.scikit-build]
 wheel.packages = ["pyobs_fli"]
@@ -51,6 +60,7 @@ select = ["E", "F", "W", "I", "UP", "G"]
 [tool.pyrefly]
 python-version = "3.11"
 ignore-missing-imports = []
+project-excludes = ["pyobs_fli/gui.py"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
