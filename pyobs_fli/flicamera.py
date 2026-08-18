@@ -158,7 +158,12 @@ class FliCamera(FliBaseMixin, BaseCamera, ICamera, IWindow, IBinning, ICooling, 
                 img[row, :] = driver.grab_row(width)
             return img
 
-        img = await self._run_blocking_or_raise(_readout, timeout=_READOUT_TIMEOUT)
+        try:
+            img = await self._run_blocking_or_raise(_readout, timeout=_READOUT_TIMEOUT)
+        except Exception:
+            log.error("Readout failed, cancelling exposure.")
+            await self._abort_exposure()
+            raise
 
         def _get_headers() -> tuple[float, float, tuple[int, int, int, int]]:
             return (
