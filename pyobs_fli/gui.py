@@ -6,6 +6,7 @@ Unverified against real FLI hardware.
 
 import asyncio
 import sys
+import threading
 import time
 
 import numpy as np
@@ -23,21 +24,21 @@ from pyobs.utils.gui.camera import (
 from pyobs.utils.gui.camera.windowingwidget import WindowingWidget
 from PySide6 import QtCore, QtWidgets  # type: ignore[import-untyped]
 
-from .flidriver import DeviceInfo, FliDriver, FliTemperature  # type: ignore[import-untyped]
+from .flidriver import FliDriver, FliTemperature  # type: ignore[import-untyped]
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, device_info: DeviceInfo) -> None:
+    def __init__(self, driver: FliDriver, binning, full_frame) -> None:
         super().__init__()
         self.setWindowTitle("FLI Camera")
 
-        self._driver = FliDriver(device_info)
-        self._driver.open()
-
-        _, binning = self._driver.get_window_binning()
-        full_frame = self._driver.get_full_frame()
-
+        # the driver is opened by async_main() before this window is built, so __init__ stays
+        # free of blocking SDK calls
+        self._driver = driver
+        self._sdk_lock = threading.Lock()
         self._abort_event = asyncio.Event()
+        self._exposing = False
+        self._closing = False
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -85,13 +86,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self._temp_timer = QtCore.QTimer()
         self._temp_timer.timeout.connect(self._refresh_temp)
         self._temp_timer.start(5000)
-        self._refresh_temp()
+        asyncio.ensure_future(self._refresh_temp())
 
-    def _refresh_temp(self) -> None:
+    def _run_blocking(self, func):
+        """Run a blocking driver call on the default executor, serialized behind self._sdk_lock."""
+        loop = asyncio.get_running_loop()
+
+        def _wrapper():
+            with self._sdk_lock:
+                return func()
+
+        return loop.run_in_executor(None, _wrapper)
+
+    @qasync.asyncSlot()  # type: ignore[misc]
+    async def _refresh_temp(self) -> None:
+        if self._exposing or self._closing:
+            return
         try:
-            ccd = self._driver.get_temp(FliTemperature.CCD)
-            base = self._driver.get_temp(FliTemperature.BASE)
-            power = self._driver.get_cooler_power()
+            ccd, base, power = await self._run_blocking(
+                lambda: (
+                    self._driver.get_temp(FliTemperature.CCD),
+                    self._driver.get_temp(FliTemperature.BASE),
+                    self._driver.get_cooler_power(),
+                )
+            )
             self._label_ccd.setText(f"{ccd:.1f} °C")
             self._label_base.setText(f"{base:.1f} °C")
             self._label_power.setText(f"{power:.0f} %")
@@ -105,8 +123,6 @@ class MainWindow(QtWidgets.QMainWindow):
         xbin, ybin = self._binning_widget._binnings[idx]  # noqa: SLF001
         exposure_time = self._exposure_time.value
 
-        loop = asyncio.get_running_loop()
-
         def _prepare() -> None:
             self._driver.set_binning(xbin, ybin)
             self._driver.set_window(left * xbin, top * ybin, width, height)
@@ -119,34 +135,36 @@ class MainWindow(QtWidgets.QMainWindow):
                 img[row, :] = self._driver.grab_row(width)
             return img
 
-        for i in range(count):
-            if self._abort_event.is_set():
-                break
+        self._exposing = True
+        try:
+            for i in range(count):
+                if self._abort_event.is_set():
+                    break
 
-            self._expose_widget.start_exposure(exposure_time)
-            await loop.run_in_executor(None, _prepare)
-            await loop.run_in_executor(None, self._driver.start_exposure)
+                self._expose_widget.start_exposure(exposure_time)
+                await self._run_blocking(_prepare)
+                await self._run_blocking(self._driver.start_exposure)
 
-            if await self._wait_exposure():
-                await loop.run_in_executor(None, self._driver.cancel_exposure)
-                break
+                if await self._wait_exposure():
+                    await self._run_blocking(self._driver.cancel_exposure)
+                    break
 
-            data = await loop.run_in_executor(None, _readout)
+                data = await self._run_blocking(_readout)
 
-            image = fits.PrimaryHDU(data)
-            image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
-            image.header["XBINNING"] = (xbin, "Binning factor used on X axis")
-            image.header["YBINNING"] = (ybin, "Binning factor used on Y axis")
-            self._data_display.set_data(image)
-            self._expose_widget.set_exposures_left(count - i - 1)
-            self._refresh_temp()
+                image = fits.PrimaryHDU(data)
+                image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
+                image.header["XBINNING"] = (xbin, "Binning factor used on X axis")
+                image.header["YBINNING"] = (ybin, "Binning factor used on Y axis")
+                self._data_display.set_data(image)
+                self._expose_widget.set_exposures_left(count - i - 1)
 
-        self._expose_widget.set_exposures_left(0)
-        self._abort_event.clear()
+            self._expose_widget.set_exposures_left(0)
+            self._abort_event.clear()
+        finally:
+            self._exposing = False
 
     async def _wait_exposure(self) -> bool:
         """Return True if the exposure was aborted, False if data is ready."""
-        loop = asyncio.get_running_loop()
 
         def _wait() -> bool:
             while True:
@@ -156,14 +174,18 @@ class MainWindow(QtWidgets.QMainWindow):
                     return False
                 time.sleep(0.01)
 
-        return await loop.run_in_executor(None, _wait)
+        return await self._run_blocking(_wait)
 
     def _abort_clicked(self) -> None:
         self._abort_event.set()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._temp_timer.stop()
-        self._driver.close()
+        # signal an in-flight exposure to stop, then wait for any SDK call in progress and close
+        self._closing = True
+        self._abort_event.set()
+        with self._sdk_lock:
+            self._driver.close()
         super().closeEvent(event)
 
 
@@ -181,10 +203,18 @@ async def async_main(app: QtWidgets.QApplication) -> None:
     else:
         device = devices[0]
 
+    # open the driver off the event loop before building the window, so MainWindow.__init__ stays
+    # free of blocking SDK calls
+    loop = asyncio.get_running_loop()
+    driver = await loop.run_in_executor(None, FliDriver, device)
+    await loop.run_in_executor(None, driver.open)
+    _, binning = await loop.run_in_executor(None, driver.get_window_binning)
+    full_frame = await loop.run_in_executor(None, driver.get_full_frame)
+
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
 
-    window = MainWindow(device)
+    window = MainWindow(driver, binning, full_frame)
     window.show()
 
     await app_close_event.wait()
