@@ -8,6 +8,8 @@ import numpy as np
 cimport numpy as np
 np.import_array()
 
+from libc.string cimport memset
+
 from .libfli cimport *
 
 
@@ -447,18 +449,22 @@ cdef class FliDriver:
         """
 
         # variables
-        cdef char *model
-        cdef size_t len
+        cdef char model[1024]
         cdef long res
+
+        # zero the buffer so FLIGetModel's NUL-terminated string is followed by known NULs, and
+        # bytes(model) (which uses the full 1024-byte static length, not the NUL) can be truncated
+        # safely below
+        memset(model, 0, sizeof(model))
 
         # get it
         with nogil:
-            res = FLIGetModel(self._device, model, len)
+            res = FLIGetModel(self._device, <char*>model, 1024)
         if res != 0:
             raise ValueError('Could not fetch model.')
 
         # return it
-        return str(model)
+        return bytes(model).split(b'\x00')[0].decode('utf-8')
 
     def get_serial_string(self) -> str:
         """Returns serial string for camera."""
@@ -467,6 +473,9 @@ cdef class FliDriver:
         cdef char serial[1024]
         cdef long res
 
+        # zero the buffer (same NUL-truncation reasoning as get_model above)
+        memset(serial, 0, sizeof(serial))
+
         # get it
         with nogil:
             res = FLIGetSerialString(self._device, <char*>serial, 1024)
@@ -474,7 +483,7 @@ cdef class FliDriver:
             raise ValueError('Could not fetch serial string.')
 
         # return it
-        return bytes(serial).decode('utf-8')
+        return bytes(serial).split(b'\x00')[0].decode('utf-8')
 
     def get_filter_pos(self) -> int:
         """Returns current filter position.

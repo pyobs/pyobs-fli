@@ -17,7 +17,7 @@ from pyobs_fli.flidriver import DeviceType
 log = logging.getLogger(__name__)
 
 
-class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHeaderBefore):
+class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHeaderBefore):
     """A pyobs module for FLI filter wheels."""
 
     __module__ = "pyobs_fli"
@@ -28,9 +28,7 @@ class FliFilterWheel(FliBaseMixin, Module, MotionStatusMixin, IFilters, IFitsHea
         Args:
             filter_names: Names of filters.
         """
-        Module.__init__(self, **kwargs)
-        FliBaseMixin.__init__(self, dev_type=DeviceType.FILTERWHEEL, **kwargs)
-        MotionStatusMixin.__init__(self, motion_status_interfaces=["IFilters"])
+        super().__init__(dev_type=DeviceType.FILTERWHEEL, motion_status_interfaces=["IFilters"], **kwargs)
 
         self._filter_names: list[list[str]] = (
             [filter_names] if isinstance(filter_names[0], str) else filter_names  # type: ignore[arg-type,list-item]

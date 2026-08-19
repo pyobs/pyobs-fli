@@ -1,6 +1,6 @@
 [project]
 name = "pyobs-fli"
-version = "2.0.0.dev10"
+version = "2.0.0.dev11"
 description = "pyobs module for FLI cameras"
 authors = [{ name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" }]
 requires-python = ">=3.11"
@@ -8,7 +8,13 @@ license = "MIT"
 dependencies = [
     "astropy>=7.0.1,<9",
     "numpy>=2.2.5,<3",
-    "pyobs-core>=2.0.0.dev48,<3",
+    "pyobs-core>=2.0.0.dev82,<3",
+]
+
+[project.optional-dependencies]
+gui = [
+    "pyobs-core[gui]>=2.0.0.dev48,<3",
+    "qasync>=0.27",
 ]
 
 [dependency-groups]
@@ -20,6 +26,9 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
 ]
+
+[project.scripts]
+fli-gui = "pyobs_fli.gui:main"
 
 [tool.scikit-build]
 wheel.packages = ["pyobs_fli"]
@@ -51,6 +60,7 @@ select = ["E", "F", "W", "I", "UP", "G"]
 [tool.pyrefly]
 python-version = "3.11"
 ignore-missing-imports = []
+project-excludes = ["pyobs_fli/gui.py"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
