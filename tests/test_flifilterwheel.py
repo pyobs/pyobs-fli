@@ -19,6 +19,22 @@ def test_constructor_single_wheel() -> None:
     assert wheel._filter_names == [["A", "B", "C"]]
 
 
+def test_constructor_threads_fli_kwargs_cooperatively() -> None:
+    """Regression test for the cooperative-super()-chain fix: FliFilterWheel(Module, FliBaseMixin,
+    MotionStatusMixin, ...) used to call Module.__init__, FliBaseMixin.__init__ and
+    MotionStatusMixin.__init__ explicitly with the same unfiltered kwargs -- live pyobs-monet
+    configs set dev_path explicitly, which must still reach FliBaseMixin through the single
+    super().__init__() call, not get lost or leak to object.__init__()."""
+    from pyobs_fli.flidriver import DeviceType
+
+    wheel = FliFilterWheel(filter_names=["A", "B", "C"], dev_path="/dev/fliusb0", keep_alive_ping=5)
+    assert wheel._dev_type == DeviceType.FILTERWHEEL
+    assert wheel._dev_path == "/dev/fliusb0"
+    assert wheel._keep_alive_ping == 5
+    assert wheel._driver is None
+    assert getattr(wheel, "_MotionStatusMixin__motion_status_interfaces") == ["IFilters"]
+
+
 def test_constructor_two_wheels() -> None:
     wheel = FliFilterWheel(filter_names=_TWO_WHEELS)
     assert wheel._filter_names == _TWO_WHEELS

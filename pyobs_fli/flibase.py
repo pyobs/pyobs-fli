@@ -52,6 +52,11 @@ class FliBaseMixin:
         # keep alive
         self.add_background_task(self._keep_alive)  # type: ignore[attr-defined]
 
+        # forward anything left to the next class in the MRO -- lets a class combining this mixin
+        # with Module/BaseCamera (which must run first, since add_background_task above needs it)
+        # claim its own kwargs cooperatively instead of this mixin silently absorbing them
+        super().__init__(**kwargs)  # type: ignore[call-arg]
+
     @staticmethod
     async def _run_blocking(func: Callable[[], None], timeout: float = _SDK_CALL_TIMEOUT) -> bool:
         """Run a blocking FLI SDK call in a daemon thread, so a hung call can't freeze the module.
