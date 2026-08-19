@@ -23,6 +23,21 @@ def test_constructor_defaults() -> None:
     assert camera._driver is None
 
 
+def test_constructor_threads_fli_kwargs_cooperatively() -> None:
+    """Regression test for the cooperative-super()-chain fix: FliCamera(BaseCamera, FliBaseMixin,
+    ...) used to call BaseCamera.__init__ and FliBaseMixin.__init__ explicitly with the same
+    unfiltered kwargs -- FliBaseMixin-only kwargs like dev_path must still reach FliBaseMixin
+    through the single super().__init__() call, not get lost or leak to object.__init__()."""
+    from pyobs_fli.flidriver import DeviceType
+
+    camera = FliCamera(dev_name="cam1", dev_path="/dev/fliusb0", keep_alive_ping=5)
+    assert camera._dev_type == DeviceType.CAMERA
+    assert camera._dev_name == "cam1"
+    assert camera._dev_path == "/dev/fliusb0"
+    assert camera._keep_alive_ping == 5
+    assert camera._driver is None
+
+
 @pytest.mark.asyncio
 async def test_set_window() -> None:
     camera = FliCamera()
