@@ -16,17 +16,28 @@ from pyobs_fli.flidriver import DeviceType
 
 log = logging.getLogger(__name__)
 
+# A physical filter move can take far longer than a typical SDK call (a long rotation
+# can be several seconds), so give it its own generous, configurable deadline instead of
+# the short SDK-call default.
+_FILTER_MOVE_TIMEOUT = 120.0
+
 
 class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHeaderBefore):
     """A pyobs module for FLI filter wheels."""
 
     __module__ = "pyobs_fli"
 
-    def __init__(self, filter_names: list[str] | list[list[str]], **kwargs: Any):
+    def __init__(
+        self,
+        filter_names: list[str] | list[list[str]],
+        filter_move_timeout: float = _FILTER_MOVE_TIMEOUT,
+        **kwargs: Any,
+    ):
         """Initializes a new FliFilterWheel.
 
         Args:
             filter_names: Names of filters.
+            filter_move_timeout: Seconds to wait for a filter move to complete.
         """
         super().__init__(dev_type=DeviceType.FILTERWHEEL, motion_status_interfaces=["IFilters"], **kwargs)
 
@@ -34,6 +45,7 @@ class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHea
             [filter_names] if isinstance(filter_names[0], str) else filter_names  # type: ignore[arg-type,list-item]
         )
 
+        self._filter_move_timeout = filter_move_timeout
         self._current_filter = ""
 
     async def open(self) -> None:
@@ -95,7 +107,23 @@ class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHea
         def _set() -> None:
             driver.set_filter_pos(pos)
 
-        await self._run_blocking_or_raise(_set)
+        try:
+            # A physical filter move can legitimately take far longer than a typical SDK
+            # call, so bound it with a dedicated, configurable move timeout rather than the
+            # short SDK-call default -- which cut off long rotations mid-move.
+            await self._run_blocking_or_raise(_set, timeout=self._filter_move_timeout)
+
+            # Confirm the wheel actually reports the requested position before declaring
+            # success, so an SDK call that returned without the wheel having arrived can't
+            # leave the published filter state silently wrong.
+            actual = await self._run_blocking_or_raise(driver.get_filter_pos)
+            if actual != pos:
+                raise exc.MoveError(f"Filter wheel reported position {actual} after moving to {pos}.")
+        except Exception:
+            # Don't leave the wheel stuck reporting "slewing" after a failed move.
+            await self._change_motion_status(MotionStatus.ERROR)
+            raise
+
         self._current_filter = filter_name
         await self._change_motion_status(MotionStatus.POSITIONED)
         await self.comm.send_event(FilterChangedEvent(filter_name))

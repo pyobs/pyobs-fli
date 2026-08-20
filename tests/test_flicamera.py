@@ -73,7 +73,7 @@ async def test_run_blocking_runs_func_and_returns_true() -> None:
     def fast() -> None:
         ran.append(True)
 
-    assert await FliCamera._run_blocking(fast) is True
+    assert await FliCamera()._run_blocking(fast) is True
     assert ran == [True]
 
 
@@ -84,7 +84,7 @@ async def test_run_blocking_times_out() -> None:
     def slow() -> None:
         done.wait()
 
-    assert await FliCamera._run_blocking(slow, timeout=0.01) is False
+    assert await FliCamera()._run_blocking(slow, timeout=0.01) is False
     done.set()
     await asyncio.sleep(0.05)
 
