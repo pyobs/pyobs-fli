@@ -27,9 +27,10 @@ class FliBaseMixin:
         dev_name: str | None = None,
         dev_path: str | None = None,
         keep_alive_ping: int = 10,
+        sdk_call_timeout: float = _SDK_CALL_TIMEOUT,
         **kwargs: Any,
     ):
-        """Initializes a new FliCamera.
+        """Initializes a new FLI device mixin.
 
         If neither dev_name nor dev_path are given, the first found device is used.
 
@@ -38,6 +39,7 @@ class FliBaseMixin:
             dev_name: Optional name for device.
             dev_path: Optional path to device.
             keep_alive_ping: Interval for keep alive ping.
+            sdk_call_timeout: Default timeout for blocking FLI SDK calls.
         """
         from .flidriver import FliDriver  # type: ignore
 
@@ -46,6 +48,7 @@ class FliBaseMixin:
         self._dev_name = dev_name
         self._dev_path = dev_path
         self._keep_alive_ping = keep_alive_ping
+        self._sdk_call_timeout = sdk_call_timeout
         self._driver: FliDriver | None = None
         self._device: Any | None = None
 
@@ -57,24 +60,35 @@ class FliBaseMixin:
         # claim its own kwargs cooperatively instead of this mixin silently absorbing them
         super().__init__(**kwargs)  # type: ignore[call-arg]
 
-    @staticmethod
-    async def _run_blocking(func: Callable[[], None], timeout: float = _SDK_CALL_TIMEOUT) -> bool:
+    async def _run_blocking(self, func: Callable[[], None], timeout: float | None = None) -> bool:
         """Run a blocking FLI SDK call in a daemon thread, so a hung call can't freeze the module.
 
         A plain executor isn't used here, since its worker threads are non-daemon and Python joins
         them on interpreter shutdown -- a hung call would then just move the freeze to process exit.
 
+        Args:
+            func: Blocking callable to run off the event loop.
+            timeout: Seconds to wait for completion. Defaults to sdk_call_timeout.
+
         Returns:
             True if func completed within timeout, False if it's still running in the background.
         """
+        timeout = self._sdk_call_timeout if timeout is None else timeout
         loop = asyncio.get_running_loop()
         future: asyncio.Future[None] = loop.create_future()
+
+        def _complete() -> None:
+            # The worker thread may outlive the timeout (wait_for cancels the future on
+            # timeout), so guard against a late set_result on an already-completed future --
+            # otherwise the loop callback raises InvalidStateError.
+            if not future.done():
+                future.set_result(None)
 
         def _wrapper() -> None:
             try:
                 func()
             finally:
-                loop.call_soon_threadsafe(future.set_result, None)
+                loop.call_soon_threadsafe(_complete)
 
         threading.Thread(target=_wrapper, daemon=True).start()
         try:
@@ -83,14 +97,19 @@ class FliBaseMixin:
         except TimeoutError:
             return False
 
-    async def _run_blocking_or_raise(self, func: Callable[[], _T], timeout: float = _SDK_CALL_TIMEOUT) -> _T:
+    async def _run_blocking_or_raise(self, func: Callable[[], _T], timeout: float | None = None) -> _T:
         """Run a blocking FLI SDK call in a thread, returning its result or re-raising what it raised.
 
         Unlike _run_blocking(), this also carries the callable's return value/exception back to the
         caller -- several FLI calls drive control flow via their return value or a raised ValueError
         (e.g. device enumeration, readout), which a bare fire-and-forget thread call would otherwise
         silently lose.
+
+        Args:
+            func: Blocking callable to run off the event loop.
+            timeout: Seconds to wait for completion. Defaults to sdk_call_timeout.
         """
+        timeout = self._sdk_call_timeout if timeout is None else timeout
         outcome: list[Any] = []
 
         def _wrapper() -> None:
