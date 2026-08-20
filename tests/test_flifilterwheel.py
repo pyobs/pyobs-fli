@@ -61,14 +61,16 @@ async def test_set_filter_first_wheel() -> None:
     wheel = FliFilterWheel(filter_names=_TWO_WHEELS)
     wheel._driver = MagicMock()
     wheel._driver.set_filter_pos = MagicMock()
+    wheel._driver.get_filter_pos = MagicMock(return_value=0)
 
-    async def fake_run(func, timeout: float = 5.0) -> None:
-        func()
+    async def fake_run(func, timeout: float | None = None) -> object:
+        return func()
 
     wheel._run_blocking_or_raise = fake_run  # type: ignore[method-assign]
 
     await wheel.set_filter("A")
     wheel._driver.set_filter_pos.assert_called_once_with(0)
+    wheel._driver.get_filter_pos.assert_called_once()
     assert wheel._current_filter == "A"
 
 
@@ -77,14 +79,16 @@ async def test_set_filter_second_wheel() -> None:
     wheel = FliFilterWheel(filter_names=_TWO_WHEELS)
     wheel._driver = MagicMock()
     wheel._driver.set_filter_pos = MagicMock()
+    wheel._driver.get_filter_pos = MagicMock(return_value=7)
 
-    async def fake_run(func, timeout: float = 5.0) -> None:
-        func()
+    async def fake_run(func, timeout: float | None = None) -> object:
+        return func()
 
     wheel._run_blocking_or_raise = fake_run  # type: ignore[method-assign]
 
     await wheel.set_filter("H")
     wheel._driver.set_filter_pos.assert_called_once_with(7)
+    wheel._driver.get_filter_pos.assert_called_once()
     assert wheel._current_filter == "H"
 
 
