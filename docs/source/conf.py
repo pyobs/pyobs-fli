@@ -53,6 +53,10 @@ extensions = [
 
 intersphinx_mapping = {"http://docs.python.org/3": None}
 
+# flidriver.pyx wraps the vendor FLI SDK as a compiled extension - not buildable on RTD,
+# and not needed for the FliCamera/FliFilterWheel autoclass docs.
+autodoc_mock_imports = ["pyobs_fli.flidriver"]
+
 # napoleon settings
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
