@@ -42,6 +42,7 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
         self._full_frame = (0, 0, 0, 0)
         self._window = (0, 0, 0, 0)
         self._binning = (1, 1)
+        self._serial: str | None = None
 
         self.add_background_task(self._poll_cooling)
 
@@ -62,6 +63,7 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
             return serial, window, binning, full_frame
 
         serial, self._window, self._binning, self._full_frame = await self._run_blocking_or_raise(_get_info)
+        self._serial = serial
         log.info("Connected to camera with serial number: %s", serial)
 
         if self._temp_setpoint is not None:
@@ -165,22 +167,25 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
             await self._abort_exposure()
             raise
 
-        def _get_headers() -> tuple[float, float, tuple[int, int, int, int]]:
+        def _get_headers() -> tuple[float, float, float, tuple[int, int, int, int]]:
             return (
                 driver.get_temp(FliTemperature.CCD),
+                driver.get_temp(FliTemperature.BASE),
                 driver.get_cooler_power(),
                 driver.get_visible_frame(),
             )
 
-        ccd_temp, cooler_power, visible_frame = await self._run_blocking_or_raise(_get_headers)
+        ccd_temp, base_temp, cooler_power, visible_frame = await self._run_blocking_or_raise(_get_headers)
 
         image = Image(img)  # type: ignore[arg-type]
         image.header["DATE-OBS"] = (date_obs, "Date and time of start of exposure")
         image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
         image.header["DET-TEMP"] = (ccd_temp, "CCD temperature [C]")
+        image.header["DET-TBAS"] = (base_temp, "Base plate temperature [C]")
         image.header["DET-COOL"] = (cooler_power, "Cooler power [percent]")
         image.header["DET-TSET"] = (self._temp_setpoint, "Cooler setpoint [C]")
         image.header["INSTRUME"] = (self._driver.name, "Name of instrument")
+        image.header["DET-ID"] = (self._serial, "Camera serial number")
         image.header["XBINNING"] = image.header["DET-BIN1"] = (self._binning[0], "Binning factor used on X axis")
         image.header["YBINNING"] = image.header["DET-BIN2"] = (self._binning[1], "Binning factor used on Y axis")
         image.header["XORGSUBF"] = (self._window[0], "Subframe origin on X axis")

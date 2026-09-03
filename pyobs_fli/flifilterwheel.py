@@ -4,10 +4,10 @@ from typing import Any
 
 import pyobs.utils.exceptions as exc
 from pyobs.events import FilterChangedEvent
-from pyobs.interfaces import FitsHeaderEntry, IFilters, IFitsHeaderBefore, IReady
+from pyobs.interfaces import IFilters, IFitsHeaderBefore, IReady
 from pyobs.interfaces.IFilters import FiltersCapabilities, FilterState
 from pyobs.interfaces.IReady import ReadyState
-from pyobs.mixins import MotionStatusMixin
+from pyobs.mixins import FilterHeaderMixin, MotionStatusMixin
 from pyobs.modules import Module
 from pyobs.utils.enums import MotionStatus
 
@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 _FILTER_MOVE_TIMEOUT = 120.0
 
 
-class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHeaderBefore):
+class FliFilterWheel(FilterHeaderMixin, Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHeaderBefore):
     """A pyobs module for FLI filter wheels."""
 
     __module__ = "pyobs_fli"
@@ -137,12 +137,6 @@ class FliFilterWheel(Module, FliBaseMixin, MotionStatusMixin, IFilters, IFitsHea
 
     async def stop_motion(self, device: str | None = None, **kwargs: Any) -> None:
         pass
-
-    async def get_fits_header_before(
-        self, namespaces: list[str] | None = None, **kwargs: Any
-    ) -> dict[str, FitsHeaderEntry]:
-        """Returns FITS header for the current status of this module."""
-        return {"FILTER": FitsHeaderEntry(self._current_filter, "Current filter")}
 
 
 __all__ = ["FliFilterWheel"]
