@@ -66,9 +66,6 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
         self._serial = serial
         log.info("Connected to camera with serial number: %s", serial)
 
-        if self._temp_setpoint is not None:
-            await self.set_cooling(True, self._temp_setpoint)
-
         await self.comm.set_capabilities(
             IWindow,
             WindowCapabilities(
@@ -99,6 +96,12 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
         """Close the module."""
         await BaseCamera.close(self)
         await FliBaseMixin.close(self)
+
+    async def full_reset(self, **kwargs: Any) -> None:
+        """Reset the device completely, including cooling."""
+        await self.reset(**kwargs)
+        if self._temp_setpoint is not None:
+            await self.set_cooling(True, self._temp_setpoint)
 
     async def set_window(self, left: int, top: int, width: int, height: int, **kwargs: Any) -> None:
         """Set the camera window."""
