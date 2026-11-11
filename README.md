@@ -32,6 +32,9 @@ The *FliCamera* class is derived from *BaseCamera* (see *pyobs* documentation) a
 
     setpoint:
         The initial setpoint in degrees Celsius for the cooling of the camera.
+    cooling_rate_cool, cooling_rate_warm, cooling_ramp_step:
+        The setpoint is changed in steps, by default 2 degC/min when cooling down and 1 degC/min when warming up
+        (cooling is disabled only after warming up). See *CoolingRampMixin* in *pyobs-core*.
 
 The class works fine with its default parameters, so a basic module configuration would look like this:
 
