@@ -9,9 +9,9 @@ import numpy as np
 from pyobs.images import Image
 from pyobs.interfaces import IAbortable, IBinning, ICamera, ICooling, ITemperatures, IWindow
 from pyobs.interfaces.IBinning import Binning, BinningCapabilities, BinningState
-from pyobs.interfaces.ICooling import CoolingState
 from pyobs.interfaces.ITemperatures import SensorReading, TemperaturesState
 from pyobs.interfaces.IWindow import WindowCapabilities, WindowState
+from pyobs.mixins import CoolingRampMixin
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.utils import exceptions as exc
 from pyobs.utils.enums import ExposureStatus
@@ -24,7 +24,9 @@ log = logging.getLogger(__name__)
 _READOUT_TIMEOUT = 60.0
 
 
-class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, ITemperatures, IAbortable):
+class FliCamera(
+    CoolingRampMixin, BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, ITemperatures, IAbortable
+):
     """A pyobs module for FLI cameras."""
 
     __module__ = "pyobs_fli"
@@ -32,8 +34,11 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
     def __init__(self, setpoint: float = -20.0, **kwargs: Any):
         """Initializes a new FliCamera.
 
+        The cooling setpoint is ramped by CoolingRampMixin, see its cooling_* options (cooling_rate_warm,
+        cooling_rate_cool, cooling_ramp_step, ...).
+
         Args:
-            setpoint: Cooling temperature setpoint.
+            setpoint: Cooling temperature setpoint that full_reset() cools to.
         """
         super().__init__(dev_type=DeviceType.CAMERA, **kwargs)
 
@@ -94,7 +99,7 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
 
     async def close(self) -> None:
         """Close the module."""
-        await BaseCamera.close(self)
+        await CoolingRampMixin.close(self)
         await FliBaseMixin.close(self)
 
     async def full_reset(self, **kwargs: Any) -> None:
@@ -186,7 +191,7 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
         image.header["DET-TEMP"] = (ccd_temp, "CCD temperature [C]")
         image.header["DET-TBAS"] = (base_temp, "Base plate temperature [C]")
         image.header["DET-COOL"] = (cooler_power, "Cooler power [percent]")
-        image.header["DET-TSET"] = (self._temp_setpoint, "Cooler setpoint [C]")
+        image.header["DET-TSET"] = (self._commanded_setpoint(), "Cooler setpoint [C]")
         image.header["INSTRUME"] = (self._driver.name, "Name of instrument")
         image.header["DET-ID"] = (self._serial, "Camera serial number")
         image.header["XBINNING"] = image.header["DET-BIN1"] = (self._binning[0], "Binning factor used on X axis")
@@ -224,27 +229,42 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
             raise ValueError("No camera driver.")
         await self._run_blocking_or_raise(self._driver.cancel_exposure)
 
-    async def set_cooling(self, enabled: bool, setpoint: float, **kwargs: Any) -> None:
-        """Enables/disables cooling and sets setpoint."""
+    def _commanded_setpoint(self) -> float | None:
+        """Setpoint last written to the camera, or the configured one if nothing was written yet."""
+        return self._cooling_commanded if self._cooling_commanded is not None else self._temp_setpoint
+
+    async def _set_cooling_hardware(self, enabled: bool, setpoint: float | None) -> None:
         if self._driver is None:
             raise ValueError("No camera driver.")
-
-        if enabled:
-            log.info("Enabling cooling with a setpoint of %.2f°C...", setpoint)
-        else:
-            log.info("Disabling cooling and setting setpoint to 20°C...")
-
-        self._temp_setpoint = setpoint if enabled else None
-        self._cooling_enabled = enabled
         driver = self._driver
 
+        # the camera has no off switch, so cooling is disabled by setting 20 degC
+        value = float(setpoint) if enabled and setpoint is not None else 20.0
+        self._cooling_enabled = enabled
+
         def _set() -> None:
-            driver.set_temperature(float(setpoint) if setpoint is not None else 20.0)
+            driver.set_temperature(value)
 
         await self._run_blocking_or_raise(_set)
-        await self.comm.set_state(
-            ICooling, CoolingState(setpoint=setpoint if setpoint is not None else 20.0, power=None, enabled=enabled)
-        )
+        await self.comm.set_state(ICooling, self._cooling_state(None, enabled, value))
+
+    async def _get_cooling_hardware(self) -> tuple[bool, float | None, int | None]:
+        if self._driver is None:
+            raise ValueError("No camera driver.")
+        driver = self._driver
+
+        power = await self._run_blocking_or_raise(driver.get_cooler_power)
+        # the SDK cannot read the setpoint back, so the ramp starts from the sensor temperature
+        return self._cooling_enabled, None, round(power)
+
+    async def _get_sensor_temperature(self) -> float | None:
+        from .flidriver import FliTemperature
+
+        if self._driver is None:
+            raise ValueError("No camera driver.")
+        driver = self._driver
+
+        return await self._run_blocking_or_raise(lambda: driver.get_temp(FliTemperature.CCD))
 
     async def _poll_cooling(self) -> None:
         """Background task: periodically reads cooling and temperature state."""
@@ -263,9 +283,9 @@ class FliCamera(BaseCamera, FliBaseMixin, ICamera, IWindow, IBinning, ICooling, 
                         )
 
                     t_ccd, t_base, power = await self._run_blocking_or_raise(_poll)
-                    setpoint = self._temp_setpoint if self._temp_setpoint is not None else 20.0
+                    setpoint = self._cooling_commanded if self._cooling_commanded is not None else 20.0
                     await self.comm.set_state(
-                        ICooling, CoolingState(setpoint=setpoint, power=round(power), enabled=self._cooling_enabled)
+                        ICooling, self._cooling_state(round(power), self._cooling_enabled, setpoint)
                     )
                     await self.comm.set_state(
                         ITemperatures,
