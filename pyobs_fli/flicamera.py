@@ -44,6 +44,7 @@ class FliCamera(
 
         self._temp_setpoint: float | None = setpoint
         self._cooling_enabled = False
+        self._cooling_written = False
         self._full_frame = (0, 0, 0, 0)
         self._window = (0, 0, 0, 0)
         self._binning = (1, 1)
@@ -238,9 +239,11 @@ class FliCamera(
             raise ValueError("No camera driver.")
         driver = self._driver
 
-        # the camera has no off switch, so cooling is disabled by setting 20 degC
-        value = float(setpoint) if enabled and setpoint is not None else 20.0
+        # the camera has no off switch, so cooling is disabled by setting the off temperature (or just above the
+        # sensor, if that is warmer, so that the cooler does not cool below ambient)
+        value = float(setpoint) if enabled and setpoint is not None else await self._off_value()
         self._cooling_enabled = enabled
+        self._cooling_written = True
 
         def _set() -> None:
             driver.set_temperature(value)
@@ -254,8 +257,18 @@ class FliCamera(
         driver = self._driver
 
         power = await self._run_blocking_or_raise(driver.get_cooler_power)
-        # the SDK cannot read the setpoint back, so the ramp starts from the sensor temperature
-        return self._cooling_enabled, None, round(power)
+        # the SDK cannot read the setpoint back, so the ramp starts from the sensor temperature. Before anything was
+        # written (e.g. after a restart of the module) the cooler may still be on from before.
+        return self._cooling_enabled or not self._cooling_written, None, round(power)
+
+    async def _off_value(self) -> float:
+        """Setpoint that stands for "off": the off temperature, or just above the sensor if that is warmer."""
+        try:
+            sensor = await self._get_sensor_temperature()
+        except Exception as e:
+            log.warning("Could not read the sensor temperature for switching off: %s", e)
+            sensor = None
+        return self._cooling_ramp.off_setpoint(sensor)
 
     async def _get_sensor_temperature(self) -> float | None:
         from .flidriver import FliTemperature
@@ -270,6 +283,7 @@ class FliCamera(
         """Background task: periodically reads cooling and temperature state."""
         from .flidriver import FliTemperature
 
+        failed = False
         while True:
             try:
                 if self._driver is not None:
@@ -283,7 +297,11 @@ class FliCamera(
                         )
 
                     t_ccd, t_base, power = await self._run_blocking_or_raise(_poll)
-                    setpoint = self._cooling_commanded if self._cooling_commanded is not None else 20.0
+                    setpoint = (
+                        self._cooling_commanded
+                        if self._cooling_commanded is not None
+                        else self._cooling_ramp.off_temperature
+                    )
                     await self.comm.set_state(
                         ICooling, self._cooling_state(round(power), self._cooling_enabled, setpoint)
                     )
@@ -296,8 +314,14 @@ class FliCamera(
                             ]
                         ),
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                if not failed:
+                    log.warning("Could not read the cooling status: %s", e)
+                failed = True
+            else:
+                if failed:
+                    log.info("Reading the cooling status works again.")
+                failed = False
             await asyncio.sleep(10)
 
 
