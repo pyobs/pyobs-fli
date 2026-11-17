@@ -8,11 +8,15 @@ import asyncio
 import sys
 import threading
 import time
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 import qasync  # type: ignore[import-untyped]
 from astropy.io import fits
+from numpy.typing import NDArray
 from pyobs.utils.enums import ImageFormat
+from pyobs.utils.frameheader import FrameSettings, make_frame_header
 from pyobs.utils.gui.camera import (
     BinningWidget,
     DataDisplayWidget,
@@ -25,6 +29,43 @@ from pyobs.utils.gui.camera.windowingwidget import WindowingWidget
 from PySide6 import QtCore, QtWidgets  # type: ignore[import-untyped]
 
 from .flidriver import FliDriver, FliTemperature  # type: ignore[import-untyped]
+
+
+def make_header(
+    driver: FliDriver,
+    date_obs: datetime,
+    exposure_time: float,
+    window: tuple[int, int, int, int],
+    binning: tuple[int, int],
+    data: NDArray[Any],
+) -> fits.Header:
+    """Builds the FITS header for a frame, reading temperatures and cooler power from the camera (blocking).
+
+    Args:
+        driver: Camera to read the settings from.
+        date_obs: UTC time the exposure was started.
+        exposure_time: Exposure time in seconds.
+        window: Left, top, width and height of the window in binned pixels, as the window widget gives them.
+        binning: Binning in x and y.
+        data: The frame.
+
+    Returns:
+        The header.
+    """
+    return make_frame_header(
+        FrameSettings(
+            date_obs=date_obs,
+            exposure_time=exposure_time,
+            instrument=driver.name,
+            binning=binning,
+            # the window start is in unbinned pixels, like in the module
+            window=(window[0] * binning[0], window[1] * binning[1], window[2] * binning[0], window[3] * binning[1]),
+            temperature=driver.get_temp(FliTemperature.CCD),
+            base_temperature=driver.get_temp(FliTemperature.BASE),
+            cooler_power=driver.get_cooler_power(),
+            data=data,
+        )
+    )
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -143,6 +184,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 self._expose_widget.start_exposure(exposure_time)
                 await self._run_blocking(_prepare)
+                date_obs = datetime.now(UTC)
                 await self._run_blocking(self._driver.start_exposure)
 
                 if await self._wait_exposure():
@@ -151,10 +193,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 data = await self._run_blocking(_readout)
 
-                image = fits.PrimaryHDU(data)
-                image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
-                image.header["XBINNING"] = (xbin, "Binning factor used on X axis")
-                image.header["YBINNING"] = (ybin, "Binning factor used on Y axis")
+                header = await self._run_blocking(
+                    lambda: make_header(
+                        self._driver, date_obs, exposure_time, (left, top, width, height), (xbin, ybin), data
+                    )
+                )
+                image = fits.PrimaryHDU(data, header=header)
                 self._data_display.set_data(image)
                 self._expose_widget.set_exposures_left(count - i - 1)
 

@@ -15,6 +15,7 @@ from pyobs.mixins import CoolingRampMixin
 from pyobs.modules.camera.basecamera import BaseCamera
 from pyobs.utils import exceptions as exc
 from pyobs.utils.enums import ExposureStatus
+from pyobs.utils.frameheader import FrameSettings, make_frame_header
 
 from .flibase import FliBaseMixin
 from .flidriver import DeviceType
@@ -187,21 +188,23 @@ class FliCamera(
         ccd_temp, base_temp, cooler_power, visible_frame = await self._run_blocking_or_raise(_get_headers)
 
         image = Image(img)  # type: ignore[arg-type]
-        image.header["DATE-OBS"] = (date_obs, "Date and time of start of exposure")
-        image.header["EXPTIME"] = (exposure_time, "Exposure time [s]")
-        image.header["DET-TEMP"] = (ccd_temp, "CCD temperature [C]")
-        image.header["DET-TBAS"] = (base_temp, "Base plate temperature [C]")
-        image.header["DET-COOL"] = (cooler_power, "Cooler power [percent]")
-        image.header["DET-TSET"] = (self._commanded_setpoint(), "Cooler setpoint [C]")
-        image.header["INSTRUME"] = (self._driver.name, "Name of instrument")
+        image.header.update(
+            make_frame_header(
+                FrameSettings(
+                    date_obs=date_obs,
+                    exposure_time=exposure_time,
+                    instrument=self._driver.name,
+                    binning=self._binning,
+                    window=self._window,
+                    temperature=ccd_temp,
+                    base_temperature=base_temp,
+                    cooler_power=cooler_power,
+                    setpoint=self._commanded_setpoint(),
+                    data=img,
+                )
+            )
+        )
         image.header["DET-ID"] = (self._serial, "Camera serial number")
-        image.header["XBINNING"] = image.header["DET-BIN1"] = (self._binning[0], "Binning factor used on X axis")
-        image.header["YBINNING"] = image.header["DET-BIN2"] = (self._binning[1], "Binning factor used on Y axis")
-        image.header["XORGSUBF"] = (self._window[0], "Subframe origin on X axis")
-        image.header["YORGSUBF"] = (self._window[1], "Subframe origin on Y axis")
-        image.header["DATAMIN"] = (float(np.min(img)), "Minimum data value")
-        image.header["DATAMAX"] = (float(np.max(img)), "Maximum data value")
-        image.header["DATAMEAN"] = (float(np.mean(img)), "Mean data value")
 
         self.set_biassec_trimsec(image.header, *visible_frame)
 
