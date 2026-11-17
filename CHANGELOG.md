@@ -9,15 +9,23 @@ Entries for releases before this file existed were generated from commit subject
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-17
+
 - The GUI writes the same FITS header as the module (it only had `EXPTIME` and the binning): date, instrument, binning,
   window origin, temperatures, cooler power and data statistics. `FliCamera` and the GUI build the header cards with
   `make_frame_header` from pyobs-core. Needs pyobs-core 2.28.0.
 - Closing the camera warms up first (pyobs-core `CoolingRampMixin`). The time limit `cooling_close_timeout` is now estimated from the current setpoint and `cooling_rate_warm` instead of a fixed 300 s, so a deeply cooled camera is warmed up completely before it is closed. Needs pyobs-core 2.28.0.
+
+## [2.1.1] - 2026-11-16
+
 - Switching cooling off sets the camera to the off temperature (20 degC by default) or, if the sensor is warmer than
   that, to just above the sensor, so that the cooler does not keep cooling below ambient. After a restart of the
   module the cooler is assumed to be on until something was written, so that switching it off warms up from the
   sensor temperature. Errors when polling the cooling status are logged (once, until it works again) instead of
   being ignored. Needs pyobs-core 2.27.0.
+
+## [2.1.0] - 2026-11-16
+
 - `FliCamera` ramps the cooling setpoint with pyobs-core's `CoolingRampMixin` (needs pyobs-core 2.24.0).
   `set_cooling` returns at once and the setpoint is stepped in the background, including warming up before cooling
   is disabled (the camera is then set to 20 degC, as before). Rates and step are set with `cooling_rate_warm`
@@ -25,6 +33,16 @@ Entries for releases before this file existed were generated from commit subject
   set in one step.
 - `set_cooling` no longer overwrites the configured `setpoint`. Before, `set_cooling(False, ...)` set it to `None`,
   so `full_reset()` did not turn cooling back on afterwards.
+
+## [2.0.5] - 2026-10-04
+
+- Put the email on the copyright line of `LICENSE`, so that GitHub detects the MIT license.
+- Dependency updates.
+
+## [2.0.4] - 2026-10-04
+
+- Added `CONTRIBUTING.md` and this changelog, and the readme and project URLs to the package metadata.
+- Dependency updates.
 
 ## [2.0.3] - 2026-09-28
 
